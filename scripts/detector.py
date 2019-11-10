@@ -156,14 +156,9 @@ class Detector:
     def project_pixel_to_ray(self, u, v):
         """ takes in a pixel coordinate (u,v) and returns a tuple (x,y,z)
         that is a unit vector in the direction of the pixel, in the camera frame """
-
-        ########## Code starts here ##########
-        # TODO: Compute x, y, z.
-        x = 0.
-        y = 0.
-        z = 1.
-        ########## Code ends here ##########
-
+        x = float(u - self.cx) / self.fx
+        y = float(v - self.cy) / self.fy
+        [x, y, z] = np.array([x, y, 1]) / np.linalg.norm(np.array([x, y, 1]))
         return x, y, z
 
     def estimate_distance(self, thetaleft, thetaright, ranges):
@@ -255,14 +250,11 @@ class Detector:
         """ extracts relevant camera intrinsic parameters from the camera_info message.
         cx, cy are the center of the image in pixel (the principal point), fx and fy are
         the focal lengths. """
-
-        ########## Code starts here ##########
-        # TODO: Extract camera intrinsic parameters.
-        self.cx = 0.
-        self.cy = 0.
-        self.fx = 1.
-        self.fy = 1.
-        ########## Code ends here ##########
+        K = msg.K
+        self.cx = K[2]
+        self.cy = K[5]
+        self.fx = K[0]
+        self.fy = K[4]
 
     def laser_callback(self, msg):
         """ callback for thr laser rangefinder """
