@@ -11,6 +11,11 @@ class DetOccupancyGrid2D(object):
         self.obstacles = obstacles
 
     def is_free(self, x):
+        """
+        determine if state x is free of obstacle
+        :param x: list / np array, state to check for collision
+        :return: boolean, true if collision free, false otherwise
+        """
         for obs in self.obstacles:
             inside = True
             for dim in range(len(x)):
@@ -35,21 +40,35 @@ class StochOccupancyGrid2D(object):
     def __init__(self, resolution, width, height, origin_x, origin_y,
                 window_size, probs, thresh=0.5):
         self.resolution = resolution
+        # width and height of the map in units of resolution
         self.width = width
         self.height = height
+        # map origin in robot's state space
         self.origin_x = origin_x
         self.origin_y = origin_y
+        # list, probability of obstacle in particular grid, indexed as grid_y * self.width + grid_x, range (0, 100)
         self.probs = probs
+        # window size use in collision checking, units of resolution
+        # check for collision in window of specified size around state (x, y only)
         self.window_size = window_size
+        # The state is collision free if the probability of obstacle in a window around state is less than thresh
         self.thresh = thresh
 
     def snap_to_grid(self, x):
         return (self.resolution*round(x[0]/self.resolution), self.resolution*round(x[1]/self.resolution))
 
     def is_free(self, state):
+        """
+        Check if state is collision free by calculating the probability that a window around the state does not contain
+        any obstacles, assuming independence between each grid point
+        :param state: list / np array, state of the robot, first two elements are x and y
+        :return: boolean, True if state is collision free, False otherwise
+        """
         # combine the probabilities of each cell by assuming independence
         # of each estimation
+        # p_total is the probability that the wind around state is free of collision
         p_total = 1.0
+        # will not give the right window size if window_size is odd
         lower = -int(round((self.window_size-1)/2))
         upper = int(round((self.window_size-1)/2))
         for dx in range(lower,upper+1):

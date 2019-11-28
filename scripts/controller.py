@@ -14,7 +14,7 @@ class Controller:
 
     def __init__(self):
         rospy.init_node('turtlebot_controller', anonymous=True)
-	rospy.Subscriber('/gazebo/model_states', ModelStates, self.gazebo_callback)
+        rospy.Subscriber('/gazebo/model_states', ModelStates, self.gazebo_callback)
         self.pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
         self.x = 0.0
         self.y = 0.0
