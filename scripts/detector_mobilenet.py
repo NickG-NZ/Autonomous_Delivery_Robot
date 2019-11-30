@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# extremely similar to detector.py, slightly worse coding style, publishes detected object in list form in addition to
+# each object
+
 import rospy
 import os
 # watch out on the order for the next two imports lol

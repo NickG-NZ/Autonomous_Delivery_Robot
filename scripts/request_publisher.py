@@ -25,7 +25,7 @@ class DeliveryRequestPublisher:
     def loop(self):
         """The main loop of the script. The script will ask for food items to add to the 
         delivery_request string until an empty answer ("") is given, at which point it will 
-        publish the string. The current request will be published several few times after which the user 
+        publish the string. The current request will be published several times after which the user
         will be prompted to create a new request."""
         if self.delivery_request is None:
             

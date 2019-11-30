@@ -16,8 +16,11 @@ import cv2
 import math
 
 def load_object_labels(filename):
-    """ loads the coco object readable name """
-
+    '''
+    Read object id and corresponding label from file
+    :param filename: path to the txt file containing objects labels
+    :return: object_labels, dict with object id (int) as keys and object label (string, underscore separated) as value
+    '''
     fo = open(filename,'r')
     lines = fo.readlines()
     fo.close()
@@ -33,7 +36,7 @@ class DetectorParams:
 
     def __init__(self, verbose=False):
 
-        # Set to True to use tensorflow and a conv net.
+        # Set use_tf to True to use tensorflow and a conv net.
         # False will use a very simple color thresholding to detect stop signs only.
         self.use_tf = rospy.get_param("use_tf")
 
@@ -76,8 +79,10 @@ class Detector:
             self.sess = tf.Session(graph=self.detection_graph)
 
         # camera and laser parameters that get updated
+        # origin offset in image plane
         self.cx = 0.
         self.cy = 0.
+        # focal length of camera
         self.fx = 1.
         self.fy = 1.
         self.laser_ranges = []
@@ -112,6 +117,7 @@ class Detector:
             # uses a simple color threshold to detect stop signs
             # this will not work in the real world, but works well in Gazebo
             # with only stop signs in the environment
+            # find pixels that are mostly red
             R = image_np[:,:,0].astype(np.int) > image_np[:,:,1].astype(np.int) + image_np[:,:,2].astype(np.int)
             Ry, Rx, = np.where(R)
             if len(Ry)>0 and len(Rx)>0:
@@ -156,20 +162,21 @@ class Detector:
     def project_pixel_to_ray(self, u, v):
         """ takes in a pixel coordinate (u,v) and returns a tuple (x,y,z)
         that is a unit vector in the direction of the pixel, in the camera frame """
-
-        ########## Code starts here ##########
-        # TODO: Compute x, y, z.
-        x = 0.
-        y = 0.
-        z = 1.
-        ########## Code ends here ##########
-
+        x = float(u - self.cx) / self.fx
+        y = float(v - self.cy) / self.fy
+        [x, y, z] = np.array([x, y, 1]) / np.linalg.norm(np.array([x, y, 1]))
         return x, y, z
 
     def estimate_distance(self, thetaleft, thetaright, ranges):
-        """ estimates the distance of an object in between two angles
-        using lidar measurements """
-
+        """
+        Estimate distance of an object from LiDAR data given its left and right edge view angle by averaging measured
+        distance between the view angles
+        :param thetaleft: float, view angle of left edge of object, range (0, 2pi)
+        :param thetaright: float view angle of right edge of object, range (0, 2pi)
+        :param ranges: list, lidar range data
+        :return: dist, float, estimated distance of object from robot
+        """
+        # find index in lidar measurements that corresponds to the left and right edge of object
         leftray_indx = min(max(0,int(thetaleft/self.laser_angle_increment)),len(ranges))
         rightray_indx = min(max(0,int(thetaright/self.laser_angle_increment)),len(ranges))
 
@@ -189,12 +196,16 @@ class Detector:
         return dist
 
     def camera_callback(self, msg):
-        """ callback for camera images """
-
+        """
+        process camera image and detect objects
+        :param msg: Image message, with field header, height, width, [...], data, origin top-left corner
+        :return: None, publishes to /detector/* and display image
+        """
         # save the corresponding laser scan
         img_laser_ranges = list(self.laser_ranges)
 
         try:
+            # convert to OpenCV format
             img = self.bridge.imgmsg_to_cv2(msg, "passthrough")
             img_bgr8 = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         except CvBridgeError as e:
@@ -255,14 +266,11 @@ class Detector:
         """ extracts relevant camera intrinsic parameters from the camera_info message.
         cx, cy are the center of the image in pixel (the principal point), fx and fy are
         the focal lengths. """
-
-        ########## Code starts here ##########
-        # TODO: Extract camera intrinsic parameters.
-        self.cx = 0.
-        self.cy = 0.
-        self.fx = 1.
-        self.fy = 1.
-        ########## Code ends here ##########
+        K = msg.K
+        self.cx = K[2]
+        self.cy = K[5]
+        self.fx = K[0]
+        self.fy = K[4]
 
     def laser_callback(self, msg):
         """ callback for thr laser rangefinder """
