@@ -3,7 +3,7 @@
 import rospy
 from nav_msgs.msg import OccupancyGrid, MapMetaData, Path
 from geometry_msgs.msg import Twist, Pose2D, PoseStamped
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 import tf
 import numpy as np
 from numpy import linalg
@@ -59,6 +59,7 @@ class Navigator:
         self.map_probs = []
         self.occupancy = None
         self.occupancy_updated = False
+        self.collision_thresh = 0.3
 
         # plan parameters
         self.plan_resolution =  0.1
@@ -93,7 +94,7 @@ class Navigator:
         self.time_till_stop = None
         self.stop_time_start = None  # Time when robot first stops
         self.stop_time = 2.  # How long to stop for
-        self.stop_max_dist = 0.5  # Maximum distance from a stop sign to obey it
+        self.stop_max_dist = 5  # Maximum distance from a stop sign to obey it
         self.crossing_time = 3.  # Time taken to cross an intersection (ignore stop signs)
         self.cross_start_time = None
 
@@ -120,6 +121,7 @@ class Navigator:
         self.nav_smoothed_path_pub = rospy.Publisher('/cmd_smoothed_path', Path, queue_size=10)
         self.nav_smoothed_path_rej_pub = rospy.Publisher('/cmd_smoothed_path_rejected', Path, queue_size=10)
         self.nav_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+        self.goal_reached_pub = rospy.Publisher('/goal_reached', Bool, queue_size=10)
 
         self.trans_listener = tf.TransformListener()
         self.cfg_srv = Server(NavigatorConfig, self.dyn_cfg_callback)
@@ -139,25 +141,23 @@ class Navigator:
 
         # If close enough and in nav mode, begin stop procedure
         if 0 < dist < self.stop_max_dist and self.mode == Mode.TRACK:
-            print "Detected stop sign, switching to Mode.STOP"
-            # Stop at sign
-            # Use average speed and the distance to stop sign to chose stopping time
+            rospy.loginfo("Detected a stop sign")
+            # Use average speed and the distance to stop sign to set stopping time
             self.stop_maneuver_start_time = rospy.get_rostime()
-            self.time_till_stop = dist / self.v_des - 0.5
+            self.time_till_stop = max(0, dist / self.v_des - 0.5)
             self.switch_mode(Mode.STOPPING)
 
     def cross_after_stop(self):
         """
         Continues following the path but ignores stop signs
         """
-        if self.stopped and self.mode == Mode.STOP:
+        rospy.loginfo("Crossing")
+        self.cross_start_time = rospy.get_rostime()
+        self.switch_mode(Mode.CROSS)
 
+    def stop_at_goal(self):
+        # TODO: publish to goal reached
 
-    def stop_at_food(self):
-        # TODO: How does navigator knows it is stopping for food..? It should probably just stop
-        # TODO: whenever it reaches the goal, regardless of what the goal is.
-
-        
     def dyn_cfg_callback(self, config, level):
         rospy.loginfo("Reconfigure Request: k1:{k1}, k2:{k2}, k3:{k3}".format(**config))
         self.pose_controller.k1 = config["k1"]
@@ -201,7 +201,8 @@ class Navigator:
                                                   self.map_origin[0],
                                                   self.map_origin[1],
                                                   8,
-                                                  self.map_probs)
+                                                  self.map_probs,
+                                                  self.collision_thresh)
             self.occupancy_updated = True
             if self.x_g is not None:
                 # if we have a goal to plan to, replan
@@ -288,7 +289,7 @@ class Navigator:
             V, om = self.traj_controller.compute_control(self.x, self.y, self.theta, t)
         elif self.mode == Mode.ALIGN:
             V, om = self.heading_controller.compute_control(self.x, self.y, self.theta, t)
-        elif self.mode == Mode.STOPPING:
+        elif self.mode == Mode.STOPPING or self.mode == Mode.CROSS:
             V, om = self.traj_controller.compute_control(self.x, self.y, self.theta, t)
         else:
             V = 0.
@@ -431,18 +432,18 @@ class Navigator:
                     self.theta_g = None
                     self.switch_mode(Mode.IDLE)
             elif self.mode == Mode.STOPPING:
-                # A semi robust stopping method
                 # Can potentially see stop signs far away or very close (uses different stop times)
+                # Keep tracking the trajectory until closer to sign
                 if (rospy.get_rostime() - self.stop_maneuver_start_time).to_sec() > self.time_till_stop:
                     self.stop_time_start = rospy.get_rostime()
                     self.switch_mode(Mode.STOPPED)
             elif self.mode == Mode.STOPPED:
                 #  Wait for 2 seconds
-                #  Needs to override callback functions which could change the mode
                 if (rospy.get_rostime() - self.stop_time_start).to_sec() > self.stop_time:
-                    self.cross
-
-
+                    self.cross_after_stop()
+            elif self.mode == Mode.CROSS:
+                if (rospy.get_rostime() - self.cross_start_time).to_sec() > self.crossing_time:
+                    self.switch_mode(Mode.TRACK)
 
             self.publish_control()
             rate.sleep()
