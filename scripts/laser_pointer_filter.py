@@ -73,9 +73,9 @@ class LaserPointerFilter():
             cv2.cvtColor(self.image_cache_rgb[self.applicable_horizon[0]:self.applicable_horizon[1], :, :],
                          cv2.COLOR_RGB2HSV)
 
-        hue_filter = np.logical_and(\
-        	self.image_cache_hsv[:, :, 0] > self.hue_minimum_threshold[0],\
-        	self.image_cache_hsv[:, :, 0] < self.hue_minimum_threshold[1])
+        hue_filter = np.logical_and( \
+            self.image_cache_hsv[:, :, 0] > self.hue_minimum_threshold[0], \
+            self.image_cache_hsv[:, :, 0] < self.hue_minimum_threshold[1])
         val_filter = self.image_cache_hsv[:, :, 2] > self.val_minimum_threshold
 
         self.image_cache_filtered = np.logical_and(hue_filter, val_filter)
@@ -85,14 +85,14 @@ class LaserPointerFilter():
             return
 
         # code to help tune filter #
-       	# import matplotlib.pyplot as plt
-       	# fig, axs =plt.subplots(3)
-       	# axs[0].imshow(self.image_cache_rgb)
-       	# axs[1].imshow(self.image_cache_hsv)
-       	# axs[2].imshow(self.image_cache_filtered)
-       	# fig.show()
-       	# input("Press Enter to continue...")
-       	# fig.close()
+        # import matplotlib.pyplot as plt
+        # fig, axs =plt.subplots(3)
+        # axs[0].imshow(self.image_cache_rgb)
+        # axs[1].imshow(self.image_cache_hsv)
+        # axs[2].imshow(self.image_cache_filtered)
+        # fig.show()
+        # input("Press Enter to continue...")
+        # fig.close()
 
         (u, v) = ndimage.measurements.center_of_mass(self.image_cache_filtered)
 
@@ -121,6 +121,41 @@ class LaserPointerFilter():
 
         x_cam, y_cam, z_cam = self.project_pixel_to_ray(u, v)
 
+        # change unit vector to vector of length self.distance_forward
+        x_cam *= self.distance_forward
+        y_cam *= self.distance_forward
+        z_cam *= self.distance_forward
+
+        goal_cam = PoseStamped()
+        goal_cam.pose.position.x = x_cam
+        goal_cam.pose.position.y = y_cam
+        goal_cam.pose.position.z = z_cam
+
+        euler_angle = math.atan2(x_cam, z_cam) # might be backwards
+        goal_cam.pose.orientation.w = math.cos(euler_angle)
+        goal_cam.pose.orientation.x = 0
+        goal_cam.pose.orientation.y = math.sin(euler_angle)
+        goal_cam.pose.orientation.z = 0
+
+
+        try:
+            origin_frame = "/map"
+            pose_origin = self.trans_listener.transformPose(origin_frame, goal_cam)
+            self.x_g = pose_origin.pose.position.x
+            self.y_g = pose_origin.pose.position.y
+            quaternion = (
+                    pose_origin.pose.orientation.x,
+                    pose_origin.pose.orientation.y,
+                    pose_origin.pose.orientation.z,
+                    pose_origin.pose.orientation.w)
+            euler = tf.transformations.euler_from_quaternion(quaternion)
+            self.theta_g = euler[2]
+            self.start_time = rospy.get_rostime()
+
+        except:
+        	print("Tranform Error")
+        	pass
+
         theta_pose = math.atan2(-x_cam, z_cam)
         x_pose = x_cam * self.distance_forward
         y_pose = y_cam * self.distance_forward
@@ -129,13 +164,13 @@ class LaserPointerFilter():
 
     def publish_laser_pointer_cmd(self):
         if 1 or rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
-        self.minimum_time_between_publish - 1:
-        	self.last_laser_pointer_cmd_publish = rospy.Time.now()
-	        if self.laser_pointer_cmd_cache is not None:
-	        	print(self.laser_pointer_cmd_cache)
-	        	self.laser_pointer_cmd_publisher.publish(self.laser_pointer_cmd_cache)
-	        else:
-	        	print("No Detection")
+                        self.minimum_time_between_publish - 1:
+            self.last_laser_pointer_cmd_publish = rospy.Time.now()
+            if self.laser_pointer_cmd_cache is not None:
+                print(self.laser_pointer_cmd_cache)
+                self.laser_pointer_cmd_publisher.publish(self.laser_pointer_cmd_cache)
+            else:
+                print("No Detection")
 
     def run(self):
         rospy.spin()
