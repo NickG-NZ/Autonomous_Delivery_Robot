@@ -25,8 +25,9 @@ class Mode(Enum):
     ALIGN = 1
     TRACK = 2
     PARK = 3
-    STOP = 4
-    CROSS = 5
+    STOPPING = 4
+    STOPPED = 5
+    CROSS = 6
 
 class Navigator:
     """
@@ -86,12 +87,15 @@ class Navigator:
         self.at_thresh = 0.02
         self.at_thresh_theta = 0.05
 
-        # Stop sign parameters
+        # Stop sign maneuver parameters
         self.stopped = False
-        self.stop_sign_start = None
-        self.stop_time = None
-        self.stop_min_dist = 0.5  # Minimum distance from a stop sign to obey it
-        self.crossing_time = 3.  # Time taken to cross an intersection
+        self.stop_maneuver_start_time = None
+        self.time_till_stop = None
+        self.stop_time_start = None  # Time when robot first stops
+        self.stop_time = 2.  # How long to stop for
+        self.stop_max_dist = 0.5  # Maximum distance from a stop sign to obey it
+        self.crossing_time = 3.  # Time taken to cross an intersection (ignore stop signs)
+        self.cross_start_time = None
 
         # trajectory smoothing
         self.spline_alpha = 0.15
@@ -111,7 +115,7 @@ class Navigator:
         self.pose_controller = PoseController(0., 0., 0., self.v_max, self.om_max)
         self.heading_controller = HeadingController(self.kp_th, self.om_max)
 
-        # path has field header an poses, which is a list of PoseStamped
+        # path has field header and poses, which is a list of PoseStamped
         self.nav_planned_path_pub = rospy.Publisher('/planned_path', Path, queue_size=10)
         self.nav_smoothed_path_pub = rospy.Publisher('/cmd_smoothed_path', Path, queue_size=10)
         self.nav_smoothed_path_rej_pub = rospy.Publisher('/cmd_smoothed_path_rejected', Path, queue_size=10)
@@ -131,23 +135,27 @@ class Navigator:
         """
         Stops the robot when appropriate if it sees a stop sign
         """
-        # distance of the stop sign
-        dist = msg.distance
+        dist = msg.distance  # distance of the stop sign
 
-        # If close enough and in nav mode, stop
-        if dist > 0 and dist < self.stop_min_dist and self.mode == Mode.TRACK:
+        # If close enough and in nav mode, begin stop procedure
+        if 0 < dist < self.stop_max_dist and self.mode == Mode.TRACK:
+            print "Detected stop sign, switching to Mode.STOP"
             # Stop at sign
-            self.stop_sign_start = rospy.get_rostime()
-            self.switch_mode(Mode.STOP)
+            # Use average speed and the distance to stop sign to chose stopping time
+            self.stop_maneuver_start_time = rospy.get_rostime()
+            self.time_till_stop = dist / self.v_des - 0.5
+            self.switch_mode(Mode.STOPPING)
 
     def cross_after_stop(self):
-        """Continues following the path but ignores stop signs"""
-        if self.stopped and mode == Mode.STOP:
+        """
+        Continues following the path but ignores stop signs
+        """
+        if self.stopped and self.mode == Mode.STOP:
 
 
     def stop_at_food(self):
-        # TODO: Ask how navigator knows it is stopping for food..? Maybe it should stop
-        # TODO: whenever it reaches goal, regardless of what the goal is.
+        # TODO: How does navigator knows it is stopping for food..? It should probably just stop
+        # TODO: whenever it reaches the goal, regardless of what the goal is.
 
         
     def dyn_cfg_callback(self, config, level):
@@ -280,6 +288,8 @@ class Navigator:
             V, om = self.traj_controller.compute_control(self.x, self.y, self.theta, t)
         elif self.mode == Mode.ALIGN:
             V, om = self.heading_controller.compute_control(self.x, self.y, self.theta, t)
+        elif self.mode == Mode.STOPPING:
+            V, om = self.traj_controller.compute_control(self.x, self.y, self.theta, t)
         else:
             V = 0.
             om = 0.
@@ -420,12 +430,17 @@ class Navigator:
                     self.y_g = None
                     self.theta_g = None
                     self.switch_mode(Mode.IDLE)
-            elif self.mode == Mode.STOP:
+            elif self.mode == Mode.STOPPING:
                 # A semi robust stopping method
-                # Could potentially see stop signs a long way away or very close (need different stop times)
-                # Use average speed and distance to stop sign to chose stopping time
-                if (rospy.get_rostime() - self.stop_sign_start).to_sec() > self.stop_time:
-
+                # Can potentially see stop signs far away or very close (uses different stop times)
+                if (rospy.get_rostime() - self.stop_maneuver_start_time).to_sec() > self.time_till_stop:
+                    self.stop_time_start = rospy.get_rostime()
+                    self.switch_mode(Mode.STOPPED)
+            elif self.mode == Mode.STOPPED:
+                #  Wait for 2 seconds
+                #  Needs to override callback functions which could change the mode
+                if (rospy.get_rostime() - self.stop_time_start).to_sec() > self.stop_time:
+                    self.cross
 
 
 
