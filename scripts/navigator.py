@@ -43,6 +43,7 @@ class Navigator:
         self.x_g = None
         self.y_g = None
         self.theta_g = None
+        self.goal_updated = False
 
         self.th_init = 0.0
 
@@ -53,7 +54,6 @@ class Navigator:
         self.map_origin = [0,0]
         self.map_probs = []
         self.occupancy = None
-        # not used? Should check before rejecting new map to avoid crashing into obstacles
         self.occupancy_updated = False
 
         # plan parameters
@@ -129,10 +129,12 @@ class Navigator:
         loads in goal if different from current goal, and replans
         """
         if data.x != self.x_g or data.y != self.y_g or data.theta != self.theta_g:
+            self.goal_updated = True
             self.x_g = data.x
             self.y_g = data.y
             self.theta_g = data.theta
             self.replan()
+            self.goal_updated = False
 
     def map_md_callback(self, msg):
         """
@@ -159,10 +161,12 @@ class Navigator:
                                                   self.map_origin[1],
                                                   8,
                                                   self.map_probs)
+            self.occupancy_updated = True
             if self.x_g is not None:
                 # if we have a goal to plan to, replan
                 rospy.loginfo("replanning because of new map")
                 self.replan() # new map, need to replan
+            self.occupancy_updated = False
 
     def shutdown_callback(self):
         """
@@ -186,7 +190,7 @@ class Navigator:
         accuracy to return to idle state
         """
         # Typo? should use self.at_thresh instead of self.near_thresh?
-        return (linalg.norm(np.array([self.x-self.x_g, self.y-self.y_g])) < self.near_thresh and abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta)
+        return (linalg.norm(np.array([self.x-self.x_g, self.y-self.y_g])) < self.at_thresh and abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta)
 
     def aligned(self):
         """
@@ -318,8 +322,8 @@ class Navigator:
             t_init_align = abs(th_err/self.om_max)
             t_remaining_new = t_init_align + t_new[-1]
 
-            if t_remaining_new > t_remaining_curr:
-                rospy.loginfo("New plan rejected (longer duration than current plan)")
+            if t_remaining_new > t_remaining_curr and not self.occupancy_updated and not self.goal_updated:
+                rospy.loginfo("New plan rejected (longer duration than current plan without changes in map or goal)")
                 self.publish_smoothed_path(traj_new, self.nav_smoothed_path_rej_pub)
                 return
 
