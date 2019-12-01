@@ -1,6 +1,7 @@
+#!/usr/bin/env python
+
 import rospy
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import Pose2D
 from asl_turtlebot.msg import FoodMap
 
 
