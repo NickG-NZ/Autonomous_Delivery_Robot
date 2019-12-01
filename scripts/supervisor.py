@@ -242,9 +242,6 @@ class Supervisor:
             rospy.loginfo("Current mode: %s", self.mode)
             self.prev_mode = self.mode
 
-        ########## Code starts here ##########
-        # TODO: Currently the state machine will just go to the pose without stopping
-        #       at the stop sign.
 
         if self.mode == Mode.IDLE:
             # Send zero velocity
@@ -259,11 +256,17 @@ class Supervisor:
 
         elif self.mode == Mode.STOP:
             # At a stop sign
-            self.nav_to_pose()
+            if self.has_stopped():
+                self.init_crossing()
+            else:
+                self.stay_idle()
 
         elif self.mode == Mode.CROSS:
             # Crossing an intersection
-            self.nav_to_pose()
+            if self.has_crossed():
+                self.mode = Mode.NAV
+            else:
+                self.go_to_pose()
 
         elif self.mode == Mode.NAV:
             if self.close_to(self.x_g, self.y_g, self.theta_g):

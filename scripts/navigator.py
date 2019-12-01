@@ -43,6 +43,7 @@ class Navigator:
         self.x_g = None
         self.y_g = None
         self.theta_g = None
+        self.goal_updated = False
 
         self.th_init = 0.0
 
@@ -57,23 +58,28 @@ class Navigator:
 
         # plan parameters
         self.plan_resolution =  0.1
+        # state space bounds used in Astar, same unit as plan_resolution
         self.plan_horizon = 15
 
         # time when we started following the plan
+        # current_plan_start time is updated to end of align / start of tracking
         self.current_plan_start_time = rospy.get_rostime()
         self.current_plan_duration = 0
         self.plan_start = [0.,0.]
         
         # Robot limits
-        self.v_max = 0.2    # maximum velocity
-        self.om_max = 0.4   # maximum angular velocity
+        # self.v_max = 0.2    # maximum velocity
+        # self.om_max = 0.4   # maximum angular velocity
+        self.v_max = rospy.get_param('/navigator/v_max', 0.2)
+        self.om_max = rospy.get_param('/navigator/om_max', 0.4)
 
-        self.v_des = 0.12   # desired cruising velocity
+        self.v_des = 0.12   # desired cruising velocity, used for path smoothing
         self.theta_start_thresh = 0.05   # threshold in theta to start moving forward when path-following
         self.start_pos_thresh = 0.2     # threshold to be far enough into the plan to recompute it
 
         # threshold at which navigator switches from trajectory to pose control
         self.near_thresh = 0.2
+        # threshold at which navigator switches from park to idle
         self.at_thresh = 0.02
         self.at_thresh_theta = 0.05
 
@@ -91,9 +97,11 @@ class Navigator:
         self.kp_th = 2.
 
         self.traj_controller = TrajectoryTracker(self.kpx, self.kpy, self.kdx, self.kdy, self.v_max, self.om_max)
+        # k1, k2, k3 initialized as zeros, later updated from dynamic parameters. line 108
         self.pose_controller = PoseController(0., 0., 0., self.v_max, self.om_max)
         self.heading_controller = HeadingController(self.kp_th, self.om_max)
 
+        # path has field header an poses, which is a list of PoseStamped
         self.nav_planned_path_pub = rospy.Publisher('/planned_path', Path, queue_size=10)
         self.nav_smoothed_path_pub = rospy.Publisher('/cmd_smoothed_path', Path, queue_size=10)
         self.nav_smoothed_path_rej_pub = rospy.Publisher('/cmd_smoothed_path_rejected', Path, queue_size=10)
@@ -121,10 +129,12 @@ class Navigator:
         loads in goal if different from current goal, and replans
         """
         if data.x != self.x_g or data.y != self.y_g or data.theta != self.theta_g:
+            self.goal_updated = True
             self.x_g = data.x
             self.y_g = data.y
             self.theta_g = data.theta
             self.replan()
+            self.goal_updated = False
 
     def map_md_callback(self, msg):
         """
@@ -139,9 +149,11 @@ class Navigator:
         """
         receives new map info and updates the map
         """
+        # data is a list of int, occupancy probability of each grid, row major indexing, range (0, 100), unknown -1
         self.map_probs = msg.data
         # if we've received the map metadata and have a way to update it:
         if self.map_width>0 and self.map_height>0 and len(self.map_probs)>0:
+            # init probability based occupancy checker with window size 8
             self.occupancy = StochOccupancyGrid2D(self.map_resolution,
                                                   self.map_width,
                                                   self.map_height,
@@ -149,10 +161,12 @@ class Navigator:
                                                   self.map_origin[1],
                                                   8,
                                                   self.map_probs)
+            self.occupancy_updated = True
             if self.x_g is not None:
                 # if we have a goal to plan to, replan
                 rospy.loginfo("replanning because of new map")
                 self.replan() # new map, need to replan
+            self.occupancy_updated = False
 
     def shutdown_callback(self):
         """
@@ -175,7 +189,8 @@ class Navigator:
         returns whether the robot has reached the goal position with enough
         accuracy to return to idle state
         """
-        return (linalg.norm(np.array([self.x-self.x_g, self.y-self.y_g])) < self.near_thresh and abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta)
+        # Typo? should use self.at_thresh instead of self.near_thresh?
+        return (linalg.norm(np.array([self.x-self.x_g, self.y-self.y_g])) < self.at_thresh and abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta)
 
     def aligned(self):
         """
@@ -248,12 +263,19 @@ class Navigator:
 
     def replan(self):
         """
-        loads goal into pose controller
         runs planner based on current pose
         if plan long enough to track:
-            smooths resulting traj, loads it into traj_controller
-            sets self.current_plan_start_time
-            sets mode to ALIGN
+            smooths resulting traj
+            if new plan takes more time than current one:
+                reject new plan
+            else:
+                loads it into traj_controller
+                loads goal into pose controller
+                sets self.current_plan_start_time
+                if not aligned:
+                    sets mode to ALIGN
+                else:
+                    sets mode to TRACK
         else:
             sets mode to PARK
         """
@@ -300,8 +322,8 @@ class Navigator:
             t_init_align = abs(th_err/self.om_max)
             t_remaining_new = t_init_align + t_new[-1]
 
-            if t_remaining_new > t_remaining_curr:
-                rospy.loginfo("New plan rejected (longer duration than current plan)")
+            if t_remaining_new > t_remaining_curr and not self.occupancy_updated and not self.goal_updated:
+                rospy.loginfo("New plan rejected (longer duration than current plan without changes in map or goal)")
                 self.publish_smoothed_path(traj_new, self.nav_smoothed_path_rej_pub)
                 return
 
