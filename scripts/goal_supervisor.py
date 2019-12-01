@@ -31,19 +31,6 @@ class GoalSupervisor:
 		self.rviz_subscriber =  \
 		rospy.Subscriber('rviz_cmd', Pose2D, self.rviz_callback)
 
-		self.vending_cmd_cache = None
-		self.vending_subscriber = \
-		rospy.Subscriber('/vending_cmd', PoseStamped, self.vending_callback)
-
-		# Goal Topic Subscriptions
-		self.laser_pointer_cmd_cache = None
-		self.laser_pointer_subscriber = \
-		rospy.Subscriber('/laser_pointer_cmd', PoseStamped, self.laser_pointer_callback)
-
-		self.rviz_cmd_cache = None
-		self.rviz_subscriber =  \
-		rospy.Subscriber('/rviz_cmd', PoseStamped, self.rviz_callback)
-
 		# State Machine Subscriptions
 		rospy.Subscriber('/reached_goal', Bool, self.reached_goal_callback)
 		rospy.Subscriber('/resume_vending', Bool, self.resume_vending_callback)
@@ -61,7 +48,7 @@ class GoalSupervisor:
 			if self.rviz_control:
 				self.publish(self.rviz_cmd_cache)
 			elif self.laser_pointer_control:
-				self.publish(self.laser_pointer_control)
+				self.publish(self.laser_pointer_cmd_cache)
 			elif self.vending_control:
 				self.publish(self.vending_cmd_cache)
 
