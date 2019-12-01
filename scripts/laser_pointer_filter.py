@@ -5,7 +5,7 @@ import math
 
 from sensor_msgs.msg import CompressedImage, Image, CameraInfo, LaserScan
 from geometry_msgs.msg import Pose2D, PoseStamped
-from tf import TransformListener
+import tf
 from scipy import ndimage
 
 from cv_bridge import CvBridge, CvBridgeError
@@ -15,21 +15,20 @@ class LaserPointerFilter():
     def __init__(self):
         """ ROS Publishers and Subscribers """
 
-        self.bridge = CvBridge()
-
         rospy.init_node('LaserPointerFilter')
         rospy.Subscriber('/camera_relay/image/compressed', CompressedImage, self.compressed_camera_callback,
                          queue_size=1, buff_size=2 ** 24)
         rospy.Subscriber('/raspicam_node/camera_info', CameraInfo, self.camera_info_callback)
         self.laser_pointer_cmd_publisher = rospy.Publisher('/laser_pointer_cmd', Pose2D, queue_size=1)
 
+        self.bridge = CvBridge()
+        self.trans_listener = tf.TransformListener()
+
         # camera and laser parameters that get updated
         self.cx = 0.
         self.cy = 0.
         self.fx = 1.
         self.fy = 1.
-
-        self.tf_listener = TransformListener()
 
         # filter attributes
         self.image_cache_rgb = None
@@ -127,40 +126,32 @@ class LaserPointerFilter():
         z_cam *= self.distance_forward
 
         goal_cam = PoseStamped()
+
+        goal_cam.header.frame_id = "raspicam"
+
         goal_cam.pose.position.x = x_cam
         goal_cam.pose.position.y = y_cam
         goal_cam.pose.position.z = z_cam
 
-        euler_angle = math.atan2(x_cam, z_cam) # might be backwards
-        goal_cam.pose.orientation.w = math.cos(euler_angle)
+        euler_angle = math.atan2(x_cam, z_cam)  # might be backwards
+        goal_cam.pose.orientation.w = math.cos(euler_angle / 2)
         goal_cam.pose.orientation.x = 0
-        goal_cam.pose.orientation.y = math.sin(euler_angle)
+        goal_cam.pose.orientation.y = math.sin(euler_angle / 2)
         goal_cam.pose.orientation.z = 0
 
+        origin_frame = "/map"
+        pose_origin = self.trans_listener.transformPose(origin_frame, goal_cam)
+        x_goal = pose_origin.pose.position.x
+        y_goal = pose_origin.pose.position.y
+        quaternion = (
+            pose_origin.pose.orientation.x,
+            pose_origin.pose.orientation.y,
+            pose_origin.pose.orientation.z,
+            pose_origin.pose.orientation.w)
+        euler = tf.transformations.euler_from_quaternion(quaternion)
+        theta_goal = euler[2]
 
-        try:
-            origin_frame = "/map"
-            pose_origin = self.trans_listener.transformPose(origin_frame, goal_cam)
-            self.x_g = pose_origin.pose.position.x
-            self.y_g = pose_origin.pose.position.y
-            quaternion = (
-                    pose_origin.pose.orientation.x,
-                    pose_origin.pose.orientation.y,
-                    pose_origin.pose.orientation.z,
-                    pose_origin.pose.orientation.w)
-            euler = tf.transformations.euler_from_quaternion(quaternion)
-            self.theta_g = euler[2]
-            self.start_time = rospy.get_rostime()
-
-        except:
-        	print("Tranform Error")
-        	pass
-
-        theta_pose = math.atan2(-x_cam, z_cam)
-        x_pose = x_cam * self.distance_forward
-        y_pose = y_cam * self.distance_forward
-
-        return x_pose, y_pose, theta_pose
+        return x_goal, y_goal, theta_goal
 
     def publish_laser_pointer_cmd(self):
         if 1 or rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
