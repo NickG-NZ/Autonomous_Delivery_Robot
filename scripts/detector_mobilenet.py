@@ -242,7 +242,7 @@ class Detector:
                     thetaright += 2.*math.pi
 
                 # estimate the corresponding distance using the lidar
-                dist = self.estimate_distance(thetaleft,thetaright,img_laser_ranges)
+                dist = self.estimate_distance(thetaleft, thetaright, img_laser_ranges)
 
                 if not self.object_publishers.has_key(cl):
                     self.object_publishers[cl] = rospy.Publisher('/detector/'+self.object_labels[cl],
@@ -256,7 +256,7 @@ class Detector:
                 object_msg.distance = dist
                 object_msg.thetaleft = thetaleft
                 object_msg.thetaright = thetaright
-                object_msg.corners = [ymin,xmin,ymax,xmax]
+                object_msg.corners = [ymin, xmin, ymax, xmax]
                 self.object_publishers[cl].publish(object_msg)
 
                 # add detected object to detected objects list
