@@ -94,7 +94,7 @@ class Navigator:
         self.time_till_stop = None
         self.stop_time_start = None  # Time when robot first stops
         self.stop_time = 2.  # How long to stop for
-        self.stop_max_dist = 5  # Maximum distance from a stop sign to obey it
+        self.stop_max_dist = 0.3  # Maximum distance from a stop sign to obey it
         self.crossing_time = 3.  # Time taken to cross an intersection (ignore stop signs)
         self.cross_start_time = None
 
@@ -121,7 +121,7 @@ class Navigator:
         self.nav_smoothed_path_pub = rospy.Publisher('/cmd_smoothed_path', Path, queue_size=10)
         self.nav_smoothed_path_rej_pub = rospy.Publisher('/cmd_smoothed_path_rejected', Path, queue_size=10)
         self.nav_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
-        self.goal_reached_pub = rospy.Publisher('/goal_reached', Bool, queue_size=10)
+        self.goal_reached_pub = rospy.Publisher('/reached_goal', Bool, queue_size=10)
 
         self.trans_listener = tf.TransformListener()
         self.cfg_srv = Server(NavigatorConfig, self.dyn_cfg_callback)
@@ -144,7 +144,7 @@ class Navigator:
             rospy.loginfo("Detected a stop sign")
             # Use average speed and the distance to stop sign to set stopping time
             self.stop_maneuver_start_time = rospy.get_rostime()
-            self.time_till_stop = max(0, dist / self.v_des - 0.5)
+            self.time_till_stop = max(0.0, dist / self.v_des - 0.5)
             self.switch_mode(Mode.STOPPING)
 
     def cross_after_stop(self):
@@ -155,8 +155,19 @@ class Navigator:
         self.cross_start_time = rospy.get_rostime()
         self.switch_mode(Mode.CROSS)
 
-    def stop_at_goal(self):
-        # TODO: publish to goal reached
+    def reached_goal(self):
+        """
+        Called when robot reaches goal.
+        Forgets goal, and publishes to /reached_goal
+        """
+        msg = Bool()
+        msg.data = True
+        self.goal_reached_pub.publish(msg)
+        # Forget current goal
+        self.x_g = None
+        self.y_g = None
+        self.theta_g = None
+        self.switch_mode(Mode.IDLE)
 
     def dyn_cfg_callback(self, config, level):
         rospy.loginfo("Reconfigure Request: k1:{k1}, k2:{k2}, k3:{k3}".format(**config))
@@ -339,7 +350,7 @@ class Navigator:
         rospy.loginfo("Navigator: computing navigation plan")
         success = problem.solve()
         if not success:
-            rospy.loginfo("Planning failed")
+            rospy.loginfo("Planning Failed")
             return
         rospy.loginfo("Planning Succeeded")
 
@@ -423,14 +434,11 @@ class Navigator:
                     self.replan()
                 elif (rospy.get_rostime() - self.current_plan_start_time).to_sec() > self.current_plan_duration:
                     rospy.loginfo("replanning because out of time")
-                    self.replan() # we aren't near the goal but we thought we should have been, so replan
+                    self.replan()  # we aren't near the goal but we thought we should have been, so replan
             elif self.mode == Mode.PARK:
                 if self.at_goal():
                     # forget about goal:
-                    self.x_g = None
-                    self.y_g = None
-                    self.theta_g = None
-                    self.switch_mode(Mode.IDLE)
+                    self.reached_goal()
             elif self.mode == Mode.STOPPING:
                 # Can potentially see stop signs far away or very close (uses different stop times)
                 # Keep tracking the trajectory until closer to sign
