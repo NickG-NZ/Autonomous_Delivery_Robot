@@ -14,6 +14,7 @@ import scipy.interpolate
 import matplotlib.pyplot as plt
 from controllers import PoseController, TrajectoryTracker, HeadingController
 from enum import Enum
+import copy
 
 from dynamic_reconfigure.server import Server
 from asl_turtlebot.cfg import NavigatorConfig
@@ -55,11 +56,12 @@ class Navigator:
         self.map_width = 0
         self.map_height = 0
         self.map_resolution = 0
-        self.map_origin = [0,0]
-        self.map_probs = []
+        self.map_origin = [0, 0]
         self.occupancy = None
+        self.prev_occupancy = None
         self.occupancy_updated = False
         self.collision_thresh = 0.3
+        self.map_diff_thresh = 0.1
 
         # plan parameters
         self.plan_resolution =  0.1
@@ -195,31 +197,76 @@ class Navigator:
         self.map_width = msg.width
         self.map_height = msg.height
         self.map_resolution = msg.resolution
-        self.map_origin = (msg.origin.position.x,msg.origin.position.y)
+        self.map_origin = (msg.origin.position.x, msg.origin.position.y)
 
     def map_callback(self, msg):
         """
         receives new map info and updates the map
+        msg type: OccupancyGrid
         """
         # data is a list of int, occupancy probability of each grid, row major indexing, range (0, 100), unknown -1
-        self.map_probs = msg.data
+        map_probs = msg.data
+
         # if we've received the map metadata and have a way to update it:
-        if self.map_width>0 and self.map_height>0 and len(self.map_probs)>0:
+        if self.map_width>0 and self.map_height>0 and len(map_probs)>0:
             # init probability based occupancy checker with window size 8
+            self.prev_occupancy = copy.deepcopy(self.occupancy)
             self.occupancy = StochOccupancyGrid2D(self.map_resolution,
                                                   self.map_width,
                                                   self.map_height,
                                                   self.map_origin[0],
                                                   self.map_origin[1],
                                                   8,
-                                                  self.map_probs,
+                                                  map_probs,
                                                   self.collision_thresh)
-            self.occupancy_updated = True
-            if self.x_g is not None:
-                # if we have a goal to plan to, replan
-                rospy.loginfo("replanning because of new map")
-                self.replan()  # new map, need to replan
+
+            if self.x_g is not None and self.map_difference_check():
+                # if we have a goal to plan to and map changed significantly, re-plan
+                rospy.loginfo("REPLANNING BECAUSE OF NEW MAP")
+                self.occupancy_updated = True
+                self.replan()  # new map, need to re-plan
+            
             self.occupancy_updated = False
+
+    def map_difference_check(self):
+        """
+        Checks similarity between current and new map.
+        If difference greater than threshold, replans.
+        """
+        def snap_to_grid_resolution(x, resolution):
+            return int(round(x / resolution))
+        
+        d_range = 1.5
+        range_new = int(round(d_range/self.map_resolution/2.0))
+        range_old = int(round(d_range/self.prev_occupancy.resolution/2.0))
+
+        x_old = snap_to_grid_resolution(self.x - self.prev_occupancy.origin_x, self.prev_occupancy.resolution)
+        y_old = snap_to_grid_resolution(self.y - self.prev_occupancy.origin_y, self.prev_occupancy.resolution)
+        x_new = snap_to_grid_resolution(self.x - self.map_origin[0], self.map_resolution)
+        y_new = snap_to_grid_resolution(self.y - self.map_origin[1], self.map_resolution)
+
+        old_grid = np.array([self.prev_occupancy.probs]).reshape(self.prev_occupancy.width, self.prev_occupancy.height)
+        new_grid = np.array([self.occupancy.probs]).reshape(self.occupancy.width, self.occupancy.height)
+
+        window_old = [max(0, x_old-range_old),
+                      min(int(self.prev_occupancy.width), x_old+range_old),
+                      max(0, y_old-range_old),
+                      min(int(self.prev_occupancy.height), y_old+range_old)]
+
+        window_new = [max(0, x_new-range_new),
+                      min(int(self.map_width), x_new+range_new),
+                      max(0, y_new-range_new),
+                      min(int(self.map_height), y_new+range_new)]
+
+        sub_grid_old = old_grid[window_old[0]:window_old[1], window_old[2]:window_old[3]]
+        sub_grid_new = new_grid[window_new[0]:window_new[1], window_new[2]:window_new[3]]
+
+        diff = np.linalg.norm(sub_grid_new - sub_grid_old)/sub_grid_old.shape[0]
+
+        if diff > self.map_diff_thresh:
+            return True
+        rospy.loginfo("DIFFERENCE IS INSIGNIFICANT")
+        return False
 
     def shutdown_callback(self):
         """
@@ -359,6 +406,7 @@ class Navigator:
         # Check whether path is too short
         if len(planned_path) < 4:
             rospy.loginfo("Path too short to track")
+            self.pose_controller.load_goal(self.x_g, self.y_g, self.theta_g)
             self.switch_mode(Mode.PARK)
             return
 
@@ -375,8 +423,8 @@ class Navigator:
             t_init_align = abs(th_err/self.om_max)
             t_remaining_new = t_init_align + t_new[-1]
 
-            if t_remaining_new > t_remaining_curr and not self.occupancy_updated and not self.goal_updated:
-                rospy.loginfo("New plan rejected (longer duration than current plan without changes in map or goal)")
+            if t_remaining_new > t_remaining_curr and not self.goal_updated and not self.occupancy_updated:
+                rospy.loginfo("New plan rejected (longer duration than current plan without changes in goal or map)")
                 self.publish_smoothed_path(traj_new, self.nav_smoothed_path_rej_pub)
                 return
 
