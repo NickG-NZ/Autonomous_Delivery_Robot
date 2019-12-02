@@ -39,18 +39,27 @@ class GoalSupervisor:
 		ROS Publishers
 		"""
 		self.cmd_nav_publisher = rospy.Publisher('/cmd_nav', Pose2D, queue_size=1)
-		self.request_vending_cmd = rospy.Publisher('/request_vending_cmd', Bool, queue_size=1)
-		self.request_vending_replan = rospy.Publisher('/request_vending_replan', Bool, queue_size=1)
+		self.request_vending_cmd_publisher = rospy.Publisher('/request_vending_cmd', Bool, queue_size=1)
+		self.request_vending_replan_publisher = rospy.Publisher('/request_vending_replan', Bool, queue_size=1)
 
 	def main_loop(self):
 
 		if self.publish_cmd:
 			if self.rviz_control:
-				self.publish(self.rviz_cmd_cache)
+				print("rviz mode: ", self.rviz_cmd_cache)
+				self.publish_cmd_nav(self.rviz_cmd_cache)
 			elif self.laser_pointer_control:
-				self.publish(self.laser_pointer_cmd_cache)
+				print("laser pointer mode: ", self.laser_pointer_cmd_cache)
+				self.publish_cmd_nav(self.laser_pointer_cmd_cache)
 			elif self.vending_control:
-				self.publish(self.vending_cmd_cache)
+
+				if self.vending_cmd_cache is None:
+					self.request_vending_replan()
+				else:
+					print("vending mode: ", self.vending_cmd_cache)
+					self.publish_cmd_nav(self.vending_cmd_cache)
+			else:
+				print("idle mode")
 
 			self.publish_cmd = False
 		
@@ -62,27 +71,30 @@ class GoalSupervisor:
 
 	def laser_pointer_callback(self, msg):
 		# laser_pointer has priority over vending but no priority over rviz
+		print("GoalSupervisor : laser_pointer mode goal updated")
 		if not self.rviz_control:
 			self.laser_pointer_control = True
 			self.vending_control = False
 			self.rviz_control = False
 			self.publish_cmd = True
 
-		self.laser_pointer_cmd_cache = msg.pose
-		self.laser_pointer_cmd_time = msg.header.stamp
+		self.laser_pointer_cmd_cache = msg
+		self.laser_pointer_cmd_time = 0
 
 	def vending_callback(self, msg):
-		self.laser_pointer_cmd_cache = msg.pose
+		print("GoalSupervisor : vending mode goal updated")
+		self.vending_cmd_cache = msg
 		if self.vending_control:
 			self.publish_cmd = True
 
 	def rviz_callback(self, msg):
+		print("GoalSupervisor : rviz mode goal updated")
 		# rviz has first priority over laser_pointer_control and vending
 		self.vending_control = False
 		self.laser_pointer_control = False
 		self.rviz_control = True
 
-		self.rviz_cmd_cache = msg.pose
+		self.rviz_cmd_cache = msg
 		self.publish_cmd = True
 
 	def reached_goal_callback(self, msg):
@@ -92,24 +104,34 @@ class GoalSupervisor:
 		elif self.laser_pointer_control:
 			self.idle()
 		elif self.vending_control:
-			msg = Bool()
-			self.request_vending_cmd(msg)
+			self.request_vending_replan()
 
 	def resume_vending_callback(self, msg):
+
+		print("Resuming vending mode")
+
 		self.vending_control = True
 		self.laser_pointer_control = False
 		self.rviz_control = False
 		self.publish_cmd = True
 
+	def request_vending_cmd(self):
 		msg = Bool()
-		self.request_vending_replan(msg)
+		self.request_vending_cmd_publisher(msg)
+
+	def request_vending_replan(self):
+		msg = Bool()
+		self.request_vending_replan_publisher.publish(msg)
+
 
 	def publish_cmd_nav(self, msg):
 		self.cmd_nav_publisher.publish(msg)
 
 	def run(self):
-		self.main_loop()
-		rospy.spin()
+		rate = rospy.Rate(10) # 10 Hz
+		while not rospy.is_shutdown():
+			self.main_loop()
+			rate.sleep()
 
 
 if __name__ == '__main__':

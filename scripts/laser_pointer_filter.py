@@ -34,14 +34,14 @@ class LaserPointerFilter():
         self.image_cache_rgb = None
         self.image_cache_hsv = None
         self.image_cache_filtered = None
-        self.applicable_horizon = [200, 280]
+        self.applicable_horizon = [200, 300]
         self.hue_minimum_threshold = [128, 138]
-        self.val_minimum_threshold = 220
+        self.val_minimum_threshold = 200
 
         self.minimum_time_between_publish = 1
         self.laser_pointer_cmd_cache = Pose2D()
         self.last_laser_pointer_cmd_publish = rospy.Time.now()
-        self.distance_forward = 0.1
+        self.distance_forward = 0.5
         self.camera_matrix = None
 
     def compressed_camera_callback(self, msg):
@@ -79,12 +79,14 @@ class LaserPointerFilter():
 
         self.image_cache_filtered = np.logical_and(hue_filter, val_filter)
 
-        if np.all(self.image_cache_filtered == 0):
+        if np.sum(np.sum(self.image_cache_filtered)) < 5:
             self.laser_pointer_cmd_cache = None
             return
 
         # code to help tune filter #
-        # import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt
+        #plt.imshow(self.image_cache_filtered)
+        #plt.show()
         # fig, axs =plt.subplots(3)
         # axs[0].imshow(self.image_cache_rgb)
         # axs[1].imshow(self.image_cache_hsv)
@@ -93,7 +95,7 @@ class LaserPointerFilter():
         # input("Press Enter to continue...")
         # fig.close()
 
-        (u, v) = ndimage.measurements.center_of_mass(self.image_cache_filtered)
+        (v, u) = ndimage.measurements.center_of_mass(self.image_cache_filtered)
 
         x, y, theta = self.camera_pixel_to_world(u, v)
 
@@ -118,44 +120,54 @@ class LaserPointerFilter():
 
     def camera_pixel_to_world(self, u, v):
 
-        x_cam, y_cam, z_cam = self.project_pixel_to_ray(u, v)
+        x, y, z = self.project_pixel_to_ray(u, v)
 
-        # change unit vector to vector of length self.distance_forward
-        x_cam *= self.distance_forward
-        y_cam *= self.distance_forward
-        z_cam *= self.distance_forward
+        theta_cam = math.atan2(-x, z) + math.pi/2
 
-        goal_cam = PoseStamped()
+        if theta_cam < 0:
+            theta_cam += 2. * math.pi
 
-        goal_cam.header.frame_id = "raspicam"
+        (translation, rotation) = self.trans_listener.lookupTransform('/map', '/base_footprint', rospy.Time(0))
+        x_cam_map = translation[0]
+        y_cam_map = translation[1]
+        euler = tf.transformations.euler_from_quaternion(rotation)
+        theta_cam_map = euler[2]
 
-        goal_cam.pose.position.x = x_cam
-        goal_cam.pose.position.y = y_cam
-        goal_cam.pose.position.z = z_cam
+        x_goal_map = self.distance_forward * np.cos(theta_cam + theta_cam_map) + x_cam_map
+        y_goal_map = self.distance_forward * np.sin(theta_cam + theta_cam_map) + y_cam_map
+        theta_goal_map = theta_cam + theta_cam_map
 
-        euler_angle = math.atan2(x_cam, z_cam)  # might be backwards
-        goal_cam.pose.orientation.w = math.cos(euler_angle / 2)
-        goal_cam.pose.orientation.x = 0
-        goal_cam.pose.orientation.y = math.sin(euler_angle / 2)
-        goal_cam.pose.orientation.z = 0
+        # goal_cam = PoseStamped()
 
-        origin_frame = "/map"
-        pose_origin = self.trans_listener.transformPose(origin_frame, goal_cam)
-        x_goal = pose_origin.pose.position.x
-        y_goal = pose_origin.pose.position.y
-        quaternion = (
-            pose_origin.pose.orientation.x,
-            pose_origin.pose.orientation.y,
-            pose_origin.pose.orientation.z,
-            pose_origin.pose.orientation.w)
-        euler = tf.transformations.euler_from_quaternion(quaternion)
-        theta_goal = euler[2]
+        # goal_cam.header.frame_id = "raspicam"
 
-        return x_goal, y_goal, theta_goal
+        # goal_cam.pose.position.x = y
+        # goal_cam.pose.position.y = x
+        # goal_cam.pose.position.z = z
+
+        # euler_angle = math.atan2(-x, z) + math.pi/2  # might be backwards
+        # goal_cam.pose.orientation.w = math.cos(euler_angle / 2)
+        # goal_cam.pose.orientation.x = 0
+        # goal_cam.pose.orientation.y = math.sin(euler_angle / 2)
+        # goal_cam.pose.orientation.z = 0
+
+        # origin_frame = "/map"
+        # pose_origin = self.trans_listener.transformPose(origin_frame, goal_cam)
+        # x_goal_map = pose_origin.pose.position.x
+        # y_goal_map = pose_origin.pose.position.y
+        # quaternion = (
+        #     pose_origin.pose.orientation.x,
+        #     pose_origin.pose.orientation.y,
+        #     pose_origin.pose.orientation.z,
+        #     pose_origin.pose.orientation.w)
+        # euler = tf.transformations.euler_from_quaternion(quaternion)
+        # theta_goal_map = euler[2]
+
+        return x_goal_map, y_goal_map, theta_goal_map
 
     def publish_laser_pointer_cmd(self):
-        if 1 or rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
-                        self.minimum_time_between_publish - 1:
+        if rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
+                        (self.minimum_time_between_publish - 1):
             self.last_laser_pointer_cmd_publish = rospy.Time.now()
             if self.laser_pointer_cmd_cache is not None:
                 print(self.laser_pointer_cmd_cache)
