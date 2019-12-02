@@ -106,4 +106,4 @@ class Vending_Planner:
         return
 
     def cmd_callback(self):
-        
+
