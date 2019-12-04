@@ -25,10 +25,10 @@ class LaserPointerFilter():
         self.trans_listener = tf.TransformListener()
 
         # camera and laser parameters that get updated
-        self.cx = 0.
-        self.cy = 0.
-        self.fx = 1.
-        self.fy = 1.
+        self.cx = 205. #0.
+        self.cy = 154. #0.
+        self.fx = 451.# 0.00304 # 1.
+        self.fy = 451.#0.00304 # 1
 
         # filter attributes
         self.image_cache_rgb = None
@@ -41,8 +41,8 @@ class LaserPointerFilter():
         self.minimum_time_between_publish = 1
         self.laser_pointer_cmd_cache = Pose2D()
         self.last_laser_pointer_cmd_publish = rospy.Time.now()
-        self.angle_multiplier = 3
-        self.distance_forward = 0.3
+        self.angle_multiplier = 1
+        self.distance_forward = 1
         self.camera_matrix = None
 
     def compressed_camera_callback(self, msg):
@@ -60,6 +60,7 @@ class LaserPointerFilter():
         cx, cy are the center of the image in pixel (the principal point), fx and fy are
         the focal lengths. Stores the result in the class itself as self.cx, self.cy,
         self.fx and self.fy """
+        print("Here**************************************")
 
         self.cx = msg.P[2]
         self.cy = msg.P[6]
@@ -85,7 +86,7 @@ class LaserPointerFilter():
             return
 
         # code to help tune filter #
-        import matplotlib.pyplot as plt
+        #import matplotlib.pyplot as plt
         #plt.imshow(self.image_cache_filtered)
         #plt.show()
         # fig, axs =plt.subplots(3)
@@ -123,7 +124,7 @@ class LaserPointerFilter():
 
         x, y, z = self.project_pixel_to_ray(u, v)
 
-        theta_cam = math.atan2(-x, z) + math.pi/2
+        theta_cam = math.atan2(-x, z)
 
         if theta_cam < 0:
             theta_cam += 2. * math.pi
@@ -169,11 +170,11 @@ class LaserPointerFilter():
         return x_goal_map, y_goal_map, theta_goal_map
 
     def publish_laser_pointer_cmd(self):
-        if rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
+        if 1 or rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
                         (self.minimum_time_between_publish - 1):
             self.last_laser_pointer_cmd_publish = rospy.Time.now()
             if self.laser_pointer_cmd_cache is not None:
-                print(self.laser_pointer_cmd_cache)
+                #print(self.laser_pointer_cmd_cache)
                 self.laser_pointer_cmd_publisher.publish(self.laser_pointer_cmd_cache)
             else:
                 print("No Detection")
