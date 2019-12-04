@@ -8,12 +8,14 @@ from std_msgs.msg import String, Bool
 import numpy as np
 from grids import StochOccupancyGrid2D
 from planners import AStar
+import itertools
+import tf
 
 
 class Vending_Planner:
     def __init__(self):
         rospy.init_node('vending_planner', anonymous=True)
-        # waypoint queue, list of np arrays
+        # waypoint queue, list of tuples, (order#, item#)
         self.queue = []
         # threshold on collision probability when finding waypoint corresponding to food
         self.occupancy_thres = 0.1
@@ -38,57 +40,110 @@ class Vending_Planner:
         # TODO: add dynamic parameter for home coordinate
         # food ordered, list of list of strings, each inner list contains one order
         self.food_reqest = []
+        self.started_vending = False
+        self.planning = False
+        self.current_waypoint = []
+        self.trans_listener = tf.TransformListener()
         self.waypoint_pub = rospy.Publisher('/vending_cmd', Pose2D, queue_size=10)
         rospy.Subscriber('/map_metadata', MapMetaData, self.map_md_callback)
         rospy.Subscriber('/map', OccupancyGrid, self.map_callback)
         rospy.Subscriber('/foodmap', FoodMap, self.foodmap_callback)
         rospy.Subscriber('/delivery_request', String, self.request_callback)
         rospy.Subscriber('/request_vending_cmd', Bool, self.cmd_callback)
-        rospy.Subscriber('/request_vending_replan', Bool, self.replan_callback)
+        # rospy.Subscriber('/request_vending_replan', Bool, self.replan_callback)
+        rospy.Subscriber('/resume_vending', Bool, self.resume_vending_callback)
+
+    def resume_vending_callback(self):
+        # freeze map and food location when in vending mode
+        rospy.loginfo('started vending: freezing map and food location')
+        self.started_vending = True
+        # since last waypoint was not reached, place current waypoint back on queue
+        # replan since we are probably at a new location now
+        if self.current_waypoint:
+            self.queue.insert(0, self.current_waypoint)
+        rospy.loginfo('replanning')
+        self.replan()
 
     def map_md_callback(self, msg):
         """
         receives maps meta data and stores it
         """
-        self.map_width = msg.width
-        self.map_height = msg.height
-        self.map_resolution = msg.resolution
-        self.map_origin = (msg.origin.position.x, msg.origin.position.y)
+        if not self.started_vending:
+            self.map_width = msg.width
+            self.map_height = msg.height
+            self.map_resolution = msg.resolution
+            self.map_origin = (msg.origin.position.x, msg.origin.position.y)
 
     def map_callback(self, msg):
         """
         receives new map info and updates the map
         """
-        # data is a list of int, occupancy probability of each grid, row major indexing, range (0, 100), unknown -1
-        self.map_probs = msg.data
-        # if we've received the map metadata and have a way to update it:
-        if self.map_width > 0 and self.map_height > 0 and len(self.map_probs) > 0:
-            # init probability based occupancy checker with window size 8
-            self.occupancy = StochOccupancyGrid2D(self.map_resolution,
-                                                  self.map_width,
-                                                  self.map_height,
-                                                  self.map_origin[0],
-                                                  self.map_origin[1],
-                                                  8,
-                                                  self.map_probs, self.occupancy_thres)
-            if self.foodmap:
-                # find waypoints for each food
-                self.find_waypoints()
-                # compute distances between food
-                self.build_connected_graph()
+        if not self.started_vending:
+            rospy.loginfo('vending: updating map')
+            # data is a list of int, occupancy probability of each grid, row major indexing, range (0, 100), unknown -1
+            self.map_probs = msg.data
+            # if we've received the map metadata and have a way to update it:
+            if self.map_width > 0 and self.map_height > 0 and len(self.map_probs) > 0:
+                # init probability based occupancy checker with window size 8
+                self.occupancy = StochOccupancyGrid2D(self.map_resolution,
+                                                      self.map_width,
+                                                      self.map_height,
+                                                      self.map_origin[0],
+                                                      self.map_origin[1],
+                                                      8,
+                                                      self.map_probs, self.occupancy_thres)
 
     def foodmap_callback(self, msg):
-        # updates foodmap
-        self.foodmap = {}
-        for ind in range(len(msg.objects)):
-            obj = msg.objects[ind]
-            coord = msg.coordinates[ind]
-            self.foodmap[obj.data] = np.array([coord.x, coord.y])
-        if self.occupancy:
-            # find waypoints for each food
-            self.find_waypoints()
-            # compute distances between food
-            self.build_connected_graph()
+        if not self.started_vending:
+            # updates foodmap
+            rospy.loginfo('vending: updating food location')
+            self.foodmap = {}
+            for ind in range(len(msg.objects)):
+                obj = msg.objects[ind]
+                coord = msg.coordinates[ind]
+                self.foodmap[obj.data] = np.array([coord.x, coord.y])
+            self.foodmap['home'] = self.home_coord
+
+    def request_callback(self, msg):
+        order = msg.data.split(',')
+        # add order to list of food request if new order
+        if order not in self.food_reqest:
+            rospy.loginfo('vending: received new food request')
+            self.food_reqest.append(order)
+            order_num = len(self.food_reqest)
+            # add all items to queue, the out of bound index represents home
+            for i in range(len(order) + 1):
+                self.queue.append([order_num, i])
+        self.replan()
+
+    def cmd_callback(self):
+        """
+        publish next waypoint
+        :return:
+        """
+        if not self.queue:
+            rospy.loginfo('vending: queue empty and there is no new request, sending home coordinate')
+            coord = self.home_coord
+        else:
+            # remove first waypoint from queue and publish it
+            obj = self.queue.pop(0)
+            # record current waypoint label
+            self.current_waypoint = obj
+            order_num, item_num = obj
+            # out of bound index represents home
+            if item_num >= len(self.food_reqest[order_num]):
+                coord = self.home_coord
+            else:
+                coord = self.food_waypoint[self.food_reqest[order_num][item_num]]
+        waypoint = Pose2D()
+        waypoint.x = coord[0]
+        waypoint.y = coord[1]
+        waypoint.theta = 0
+        self.waypoint_pub.publish(waypoint)
+
+    # def replan_callback(self):
+    #     if not self.planning:
+    #         self.replan()
 
     def find_waypoints(self):
         """
@@ -119,11 +174,18 @@ class Vending_Planner:
 
     def build_connected_graph(self):
         """
-        calculate the distance between each food object
+        calculate the distance between current location, each food object, and home
         :return: None. Update self.distance_mat, such that element i, j is the distance from food i to food j,
         where i and j are the index in self.food_list
         """
-        # create list of food so index of each food is fixed
+        # add home location to food_waypoints
+        self.food_waypoint['home'] = self.home_coord
+        # add current location to food_waypoints
+        (translation, rotation) = self.trans_listener.lookupTransform('/map', '/base_footprint', rospy.Time(0))
+        x = translation[0]
+        y = translation[1]
+        self.food_waypoint['self'] = [x, y]
+        # create list of food so index of each objects is fixed
         self.food_list = self.food_waypoint.keys()
         nfood = len(self.food_list)
         # bounds for Astar search
@@ -151,24 +213,19 @@ class Vending_Planner:
                     self.distance_mat[j, i] = cost
         return
 
-    def request_callback(self, msg):
-        order = msg.data.split(',')
-        # add order to list of food request if new order
-        if order not in self.food_reqest:
-            self.food_reqest.append(order)
-        self.replan()
-
     def replan(self):
-        return
-
-    def cmd_callback(self):
-        # remove first waypoint from queue and publish it
-        coord = self.queue.pop(0)
-        waypoint = Pose2D()
-        waypoint.x = coord[0]
-        waypoint.y = coord[1]
-        waypoint.theta = 0
-        self.waypoint_pub.publish(waypoint)
-
-    def replan_callback(self):
-        self.replan()
+        rospy.loginfo('vending: planning waypoints')
+        self.planning = True
+        self.find_waypoints()
+        self.build_connected_graph()
+        # generate all possible paths, and calculate distances
+        paths = []
+        distances = []
+        order_numbers = len(self.food_reqest)
+        total_item_numbers = [len(self.food_reqest[i]) for i in range(order_numbers)]
+        waypoint_number = sum(total_item_numbers) + order_numbers
+        temp = []
+        # complete the earliest order first
+        for order_iter in range(order_numbers - 1, -1, -1):
+            item_numbers = len(self.food_reqest[order_iter])
+            item_order = itertools.permutations(list(range(waypoint_number - sum(total_item_numbers[(order_iter + 1):]) - (order_numbers - order_iter))), item_numbers)
