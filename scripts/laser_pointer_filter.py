@@ -42,7 +42,7 @@ class LaserPointerFilter():
         self.laser_pointer_cmd_cache = Pose2D()
         self.last_laser_pointer_cmd_publish = rospy.Time.now()
         self.angle_multiplier = 1
-        self.distance_forward = 1
+        self.distance_forward = 0.2
         self.camera_matrix = None
 
     def compressed_camera_callback(self, msg):
@@ -170,7 +170,7 @@ class LaserPointerFilter():
         return x_goal_map, y_goal_map, theta_goal_map
 
     def publish_laser_pointer_cmd(self):
-        if 1 or rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
+        if rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
                         (self.minimum_time_between_publish - 1):
             self.last_laser_pointer_cmd_publish = rospy.Time.now()
             if self.laser_pointer_cmd_cache is not None:
