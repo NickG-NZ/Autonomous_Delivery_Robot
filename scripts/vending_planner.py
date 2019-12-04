@@ -10,6 +10,7 @@ from grids import StochOccupancyGrid2D
 from planners import AStar
 import itertools
 import tf
+from collections import defaultdict
 
 
 class Vending_Planner:
@@ -58,7 +59,7 @@ class Vending_Planner:
         rospy.loginfo('started vending: freezing map and food location')
         self.started_vending = True
         # since last waypoint was not reached, place current waypoint back on queue
-        # replan since we are probably at a new location now
+        # also replan since we are probably at a new location now
         if self.current_waypoint:
             self.queue.insert(0, self.current_waypoint)
         rospy.loginfo('replanning')
@@ -94,6 +95,9 @@ class Vending_Planner:
                                                       self.map_probs, self.occupancy_thres)
 
     def foodmap_callback(self, msg):
+        """
+        updates food location
+        """
         if not self.started_vending:
             # updates foodmap
             rospy.loginfo('vending: updating food location')
@@ -105,6 +109,11 @@ class Vending_Planner:
             self.foodmap['home'] = self.home_coord
 
     def request_callback(self, msg):
+        """
+        add new order to queue and replan
+        :param msg: new food request, detail see request_publisher.py
+        :return: None, updates self.queue
+        """
         order = msg.data.split(',')
         # add order to list of food request if new order
         if order not in self.food_reqest:
@@ -214,6 +223,10 @@ class Vending_Planner:
         return
 
     def replan(self):
+        """
+        replane vending path by calculating distance for every possible order of pick up and drop off
+        :return: None, updates self.queue
+        """
         rospy.loginfo('vending: planning waypoints')
         self.planning = True
         self.find_waypoints()
@@ -221,11 +234,81 @@ class Vending_Planner:
         # generate all possible paths, and calculate distances
         paths = []
         distances = []
-        order_numbers = len(self.food_reqest)
-        total_item_numbers = [len(self.food_reqest[i]) for i in range(order_numbers)]
-        waypoint_number = sum(total_item_numbers) + order_numbers
+        # items that still need to be picked up in each order
+        pickups_in_orders = self.get_pickups()
+        order_numbers = len(pickups_in_orders)
+        # number of pickups in each order
+        num_pickups_order = [len(pickups_in_orders[i]) for i in range(order_numbers)]
+        # waypoint required for each item pickup and each order drop off
+        waypoint_number = sum(num_pickups_order) + order_numbers
+        # index in distance_mat for each waypoint
+        mat_index = {}
+        for ind in range(len(self.food_list)):
+            mat_index[self.food_list[ind]] = ind
+        # generate paths through permutation
         temp = []
-        # complete the earliest order first
-        for order_iter in range(order_numbers - 1, -1, -1):
-            item_numbers = len(self.food_reqest[order_iter])
-            item_order = itertools.permutations(list(range(waypoint_number - sum(total_item_numbers[(order_iter + 1):]) - (order_numbers - order_iter))), item_numbers)
+        # pickups_in_orders is sorted with earliest orders last, generate permutations starting with latest orders
+        for order_iter in range(order_numbers):
+            item_number = num_pickups_order[order_iter]
+            # the open spots in waypoint sequences are those not taken up by previous order pick ups, their drop offs,
+            # and drop off for current order
+            open_spots = waypoint_number - sum(num_pickups_order[:order_iter]) - (order_iter + 1)
+            # possible order of pick ups for this order
+            item_order = list(itertools.permutations(list(range(open_spots)), item_number))
+            temp.append(item_order)
+        temp = list(itertools.product(*temp))
+        for perm in temp:
+            # combine the permutation for each orders to form the paths
+            path = [[] for _ in range(waypoint_number)]
+            for order_iter in range(order_numbers):
+                # spots in path not taken up by waypoints
+                open_spots = [i for i, x in enumerate(path) if not x]
+                # the last open spot is for drop off
+                path[open_spots[-1]] = [order_iter, len(pickups_in_orders[order_iter])]
+                for item_iter in range(num_pickups_order[order_iter]):
+                    # put the item label into corresponding spot in the path
+                    # perm[order_iter][item_iter] indicate which of the open spots is selected for the item
+                    path[open_spots[perm[order_iter][item_iter]]] = pickups_in_orders[order_iter][item_iter]
+            paths.append(path)
+            # calculate total distance for the path
+            distance = 0
+            # head of path segment
+            head = mat_index['self']
+            for waypoint in path:
+                order_iter, item_iter = waypoint
+                # tail of path segment
+                tail = mat_index[self.food_reqest[order_iter][item_iter]]
+                distance += self.distance_mat[head, tail]
+            distances.append(distance)
+        # find min distance and corresponding path
+        optim_ind = distances.index(min(distances))
+        self.queue = paths[optim_ind]
+
+    def get_pickups(self):
+        """
+        Find items that still needs to be picked up in each order
+        :return: pickups_per_order: nested list, each inner list contains items to be picked up for that order,
+        each item has the form [order#, item#], order and item numbers refer to self.food_request. earliest order last
+        """
+        pickups_per_order = defaultdict(list)
+        for it in self.queue:
+            pickups_per_order[it[0]].append(it)
+        # sort based on order number, ascending order
+        temp = sorted(pickups_per_order.items(), key=lambda s: s[0])
+        # reverse, so the earlier order is last
+        temp = temp[::-1]
+        # get items in each order
+        pickups_per_order = [x[1] for x in temp]
+        # remove home from each order
+        for order_iter in range(len(pickups_per_order)):
+            pickups_per_order[order_iter] = [x for x in pickups_per_order[order_iter]
+                                             if x[1] < len(self.food_reqest[x[0]])]
+        return pickups_per_order
+
+    def run(self):
+        rospy.spin()
+
+
+if __name__ == '__main__':
+    vp = Vending_Planner()
+    vp.run()
