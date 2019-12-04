@@ -18,7 +18,7 @@ class GoalPoseCommander:
         self.trans_listener = tf.TransformListener()
         self.start_time = rospy.get_rostime()
         # command pose for controller
-        self.nav_goal_publisher = rospy.Publisher('/cmd_nav', Pose2D, queue_size=10)
+        self.nav_goal_publisher = rospy.Publisher('/rviz_cmd', Pose2D, queue_size=10)
         rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.rviz_goal_callback)
         
     def rviz_goal_callback(self, msg):
