@@ -155,24 +155,25 @@ class AStar(object):
                 .add(item) and .remove(item) respectively, as well as checking for
                 set membership efficiently using the syntax "if item in set".
         """
-        while self.open_set:
-            x_current = self.find_best_est_cost_through()
-            if self.distance(x_current, self.x_goal) < 1e-5:
-                self.path = self.reconstruct_path()
-                break
-            self.open_set.remove(x_current)
-            self.closed_set.add(x_current)
-            for x_neigh in self.get_neighbors(x_current):
-                if x_neigh in self.closed_set:
-                    continue
-                tentative_cost_to_arrive = self.cost_to_arrive[x_current] + self.distance(x_current, x_neigh)
-                if not x_neigh in self.open_set:
-                    self.open_set.add(x_neigh)
-                elif tentative_cost_to_arrive > self.cost_to_arrive[x_neigh]:
-                    continue
-                self.came_from[x_neigh] = x_current
-                self.cost_to_arrive[x_neigh] = tentative_cost_to_arrive
-                self.est_cost_through[x_neigh] = tentative_cost_to_arrive + self.distance(x_neigh, self.x_goal)
+        if self.is_free(self.x_goal):
+            while self.open_set:
+                x_current = self.find_best_est_cost_through()
+                if self.distance(x_current, self.x_goal) < 1e-5:
+                    self.path = self.reconstruct_path()
+                    break
+                self.open_set.remove(x_current)
+                self.closed_set.add(x_current)
+                for x_neigh in self.get_neighbors(x_current):
+                    if x_neigh in self.closed_set:
+                        continue
+                    tentative_cost_to_arrive = self.cost_to_arrive[x_current] + self.distance(x_current, x_neigh)
+                    if not x_neigh in self.open_set:
+                        self.open_set.add(x_neigh)
+                    elif tentative_cost_to_arrive > self.cost_to_arrive[x_neigh]:
+                        continue
+                    self.came_from[x_neigh] = x_current
+                    self.cost_to_arrive[x_neigh] = tentative_cost_to_arrive
+                    self.est_cost_through[x_neigh] = tentative_cost_to_arrive + self.distance(x_neigh, self.x_goal)
         if self.path:
             return True
         else:
