@@ -41,7 +41,8 @@ class LaserPointerFilter():
         self.minimum_time_between_publish = 1
         self.laser_pointer_cmd_cache = Pose2D()
         self.last_laser_pointer_cmd_publish = rospy.Time.now()
-        self.distance_forward = 0.5
+        self.angle_multiplier = 3
+        self.distance_forward = 0.3
         self.camera_matrix = None
 
     def compressed_camera_callback(self, msg):
@@ -133,9 +134,11 @@ class LaserPointerFilter():
         euler = tf.transformations.euler_from_quaternion(rotation)
         theta_cam_map = euler[2]
 
-        x_goal_map = self.distance_forward * np.cos(theta_cam + theta_cam_map) + x_cam_map
-        y_goal_map = self.distance_forward * np.sin(theta_cam + theta_cam_map) + y_cam_map
-        theta_goal_map = theta_cam + theta_cam_map
+        t = self.angle_multiplier*(theta_cam + theta_cam_map)
+
+        x_goal_map = self.distance_forward * np.cos(t) + x_cam_map
+        y_goal_map = self.distance_forward * np.sin(t) + y_cam_map
+        theta_goal_map = t
 
         # goal_cam = PoseStamped()
 
