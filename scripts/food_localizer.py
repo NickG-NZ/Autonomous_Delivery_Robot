@@ -35,7 +35,7 @@ class Food_Localizer:
         data_list = msg.ob_msgs
         for ind in range(len(objects)):
             # get location of the object
-            obj = objects[ind]
+            obj = objects[ind].data
             data = data_list[ind]
             obj_theta = (data.thetaleft + data.thetaright) / 2.0
             obj_dist = data.distance
@@ -46,7 +46,7 @@ class Food_Localizer:
             # update foodmap
             if obj not in self.foodmap.keys():
                 self.foodmap[obj] = obj_coord
-                self.count[obj] = 0
+                self.count[obj] = 1
             else:
                 if np.linalg.norm(self.foodmap[obj] - obj_coord) < self.threshold:
                     self.foodmap[obj] = (self.count[obj] * self.foodmap[obj] + obj_coord) \

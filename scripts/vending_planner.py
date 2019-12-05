@@ -115,6 +115,10 @@ class Vending_Planner:
         :return: None, updates self.queue
         """
         order = msg.data.split(',')
+        for i in range(len(order)):
+            if order[i] not in self.food_list:
+                rospy.loginfo('vending: requested food {0} does not exist'.format(order[i]))
+                del order[i]
         # add order to list of food request if new order
         if order not in self.food_reqest:
             rospy.loginfo('vending: received new food request')

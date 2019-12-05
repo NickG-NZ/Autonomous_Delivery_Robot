@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  geometry_msgs
   message_generation
 	dynamic_reconfigure
 )
@@ -50,6 +51,7 @@ add_message_files(
  FILES
  DetectedObject.msg
  DetectedObjectList.msg
+ FoodMap.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -70,6 +72,7 @@ add_message_files(
 generate_messages(
  DEPENDENCIES
  std_msgs
+ geometry_msgs
 )
 
 ################################################
@@ -103,7 +106,7 @@ generate_dynamic_reconfigure_options(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES asl_turtlebot
-#  CATKIN_DEPENDS roscpp rospy std_msgs
+   CATKIN_DEPENDS roscpp rospy std_msgs geometry_msgs
 #  DEPENDS system_lib
 )
 

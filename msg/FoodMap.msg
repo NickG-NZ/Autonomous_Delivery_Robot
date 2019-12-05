@@ -1,2 +1,2 @@
 string[] objects
-Pose2D[] coordinates
+geometry_msgs/Pose2D[] coordinates
