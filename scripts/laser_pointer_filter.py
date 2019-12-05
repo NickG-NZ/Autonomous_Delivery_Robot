@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import numpy as np
 import cv2
 import rospy
@@ -47,6 +49,13 @@ class LaserPointerFilter():
 
     def compressed_camera_callback(self, msg):
         """ callback for camera images """
+
+        try:
+            self.applicable_horizon
+        except:
+            print("No self.applicable_horizon yet")
+            return
+
         try:
             self.image_cache_rgb = self.bridge.compressed_imgmsg_to_cv2(msg, "passthrough")
         except CvBridgeError as e:
@@ -86,9 +95,9 @@ class LaserPointerFilter():
             return
 
         # code to help tune filter #
-        #import matplotlib.pyplot as plt
-        #plt.imshow(self.image_cache_filtered)
-        #plt.show()
+        import matplotlib.pyplot as plt
+        plt.imshow(self.image_cache_filtered)
+        plt.show()
         # fig, axs =plt.subplots(3)
         # axs[0].imshow(self.image_cache_rgb)
         # axs[1].imshow(self.image_cache_hsv)
@@ -176,8 +185,6 @@ class LaserPointerFilter():
             if self.laser_pointer_cmd_cache is not None:
                 #print(self.laser_pointer_cmd_cache)
                 self.laser_pointer_cmd_publisher.publish(self.laser_pointer_cmd_cache)
-            else:
-                print("No Detection")
 
     def run(self):
         rospy.spin()
