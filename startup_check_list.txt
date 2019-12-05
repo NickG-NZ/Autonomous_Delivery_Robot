@@ -1,0 +1,10 @@
+jetsonpi (goal_commander, gmapping, camera, velodyne, detector)
+rviz
+navigator
+goal_supervisor
+laser filter
+vending_planner
+food_localizer
+display_food
+request_publisher
+
