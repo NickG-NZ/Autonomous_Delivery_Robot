@@ -264,7 +264,7 @@ class Vending_Planner:
                 # spots in path not taken up by waypoints
                 open_spots = [i for i, x in enumerate(path) if not x]
                 # the last open spot is for drop off
-                path[open_spots[-1]] = [order_iter, len(pickups_in_orders[order_iter])]
+                path[open_spots[-1]] = [0, len(pickups_in_orders[0])]
                 for item_iter in range(num_pickups_order[order_iter]):
                     # put the item label into corresponding spot in the path
                     # perm[order_iter][item_iter] indicate which of the open spots is selected for the item
@@ -277,8 +277,12 @@ class Vending_Planner:
             for waypoint in path:
                 order_iter, item_iter = waypoint
                 # tail of path segment
-                tail = mat_index[self.food_reqest[order_iter][item_iter]]
+                if item_iter >= len(self.food_reqest[order_iter]):
+                    tail = mat_index['home']
+                else:
+                    tail = mat_index[self.food_reqest[order_iter][item_iter]]
                 distance += self.distance_mat[head, tail]
+                head = tail
             distances.append(distance)
         # find min distance and corresponding path
         optim_ind = distances.index(min(distances))
