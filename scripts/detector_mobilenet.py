@@ -66,10 +66,10 @@ class Detector:
             # self.sess = tf.Session(graph=self.detection_graph)
 
         # camera and laser parameters that get updated, data for raspicam
-        self.cx = 205.
-        self.cy = 154.
-        self.fx = 451.
-        self.fy = 451.
+        self.cx = 198.4  # 0.
+        self.cy = 155.5  # 0.
+        self.fx = 329.2  # 0.00304 # 1.
+        self.fy = 329.1  # 0.00304 # 1
         self.laser_ranges = []
         self.laser_angle_increment = 0.01 # this gets updated
 
