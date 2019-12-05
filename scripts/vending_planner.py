@@ -105,7 +105,7 @@ class Vending_Planner:
             for ind in range(len(msg.objects)):
                 obj = msg.objects[ind]
                 coord = msg.coordinates[ind]
-                self.foodmap[obj.data] = np.array([coord.x, coord.y])
+                self.foodmap[obj] = np.array([coord.x, coord.y])
             self.foodmap['home'] = self.home_coord
 
     def request_callback(self, msg):

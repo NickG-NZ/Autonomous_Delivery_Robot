@@ -95,9 +95,9 @@ class LaserPointerFilter():
             return
 
         # code to help tune filter #
-        import matplotlib.pyplot as plt
-        plt.imshow(self.image_cache_filtered)
-        plt.show()
+        #import matplotlib.pyplot as plt
+        #plt.imshow(self.image_cache_filtered)
+        #plt.show()
         # fig, axs =plt.subplots(3)
         # axs[0].imshow(self.image_cache_rgb)
         # axs[1].imshow(self.image_cache_hsv)
@@ -179,7 +179,7 @@ class LaserPointerFilter():
         return x_goal_map, y_goal_map, theta_goal_map
 
     def publish_laser_pointer_cmd(self):
-        if rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
+        if 1 or rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
                         (self.minimum_time_between_publish - 1):
             self.last_laser_pointer_cmd_publish = rospy.Time.now()
             if self.laser_pointer_cmd_cache is not None:

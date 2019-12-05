@@ -60,7 +60,7 @@ class Navigator:
         self.occupancy = None
         self.prev_occupancy = None
         self.occupancy_updated = False
-        self.collision_thresh = 0.3
+        self.collision_thresh = 0.4
         self.map_diff_thresh = 0.1
 
         # plan parameters
@@ -88,7 +88,7 @@ class Navigator:
         self.near_thresh = 0.2
         # threshold at which navigator switches from park to idle
         self.at_thresh = 0.02
-        self.at_thresh_theta = 0.05
+        self.at_thresh_theta = np.pi  # default 0.5
 
         # Stop sign maneuver parameters
         self.stopped = False
@@ -101,7 +101,7 @@ class Navigator:
         self.cross_start_time = None
 
         # trajectory smoothing
-        self.spline_alpha = 0.15
+        self.spline_alpha = 0.01
         self.traj_dt = 0.1
 
         # trajectory tracking controller parameters

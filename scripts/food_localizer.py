@@ -35,7 +35,7 @@ class Food_Localizer:
         data_list = msg.ob_msgs
         for ind in range(len(objects)):
             # get location of the object
-            obj = objects[ind].data
+            obj = objects[ind]
             data = data_list[ind]
             obj_theta = (data.thetaleft + data.thetaright) / 2.0
             obj_dist = data.distance
@@ -55,9 +55,7 @@ class Food_Localizer:
         # publish new food map
         map_msg = FoodMap()
         for obj in self.foodmap.keys():
-            obj_name = String()
-            obj_name.data = obj
-            map_msg.objects.append(obj_name)
+            map_msg.objects.append(obj)
             coord = Pose2D()
             coord.x = self.foodmap[obj][0]
             coord.y = self.foodmap[obj][1]
