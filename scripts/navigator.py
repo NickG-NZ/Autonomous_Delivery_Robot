@@ -80,7 +80,7 @@ class Navigator:
         self.v_max = rospy.get_param('/navigator/v_max', 0.2)
         self.om_max = rospy.get_param('/navigator/om_max', 0.4)
 
-        self.v_des = 0.12   # desired cruising velocity, used for path smoothing
+        self.v_des = 0.10   # desired cruising velocity, used for path smoothing
         self.theta_start_thresh = 0.05   # threshold in theta to start moving forward when path-following
         self.start_pos_thresh = 0.2     # threshold to be far enough into the plan to recompute it
 
@@ -111,7 +111,7 @@ class Navigator:
         self.kdy = 1.5
 
         # heading controller parameters
-        self.kp_th = 2.
+        self.kp_th = 1.5
 
         self.traj_controller = TrajectoryTracker(self.kpx, self.kpy, self.kdx, self.kdy, self.v_max, self.om_max)
         # k1, k2, k3 initialized as zeros, later updated from dynamic parameters. line 120
@@ -220,7 +220,7 @@ class Navigator:
                                                   map_probs,
                                                   self.collision_thresh)
 
-            if self.x_g is not None and self.map_difference_check():
+            if self.x_g is not None and self.prev_occupancy is not None and self.map_difference_check():
                 # if we have a goal to plan to and map changed significantly, re-plan
                 rospy.loginfo("REPLANNING BECAUSE OF NEW MAP")
                 self.occupancy_updated = True
