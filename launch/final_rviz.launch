@@ -1,0 +1,5 @@
+<launch>
+
+	<node type="rviz" name="rviz" pkg="rviz" args="-d $(find asl_turtlebot)/launch/project_rviz.rviz" />
+
+</launch>

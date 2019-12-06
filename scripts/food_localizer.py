@@ -22,6 +22,7 @@ class Food_Localizer:
         self.trans_listener = tf.TransformListener()
         self.foodmap_pub = rospy.Publisher('/foodmap', FoodMap, queue_size=10)
         rospy.Subscriber('/detector/objects', DetectedObjectList, self.detector_callback)
+        rospy.Subscriber('/resume_vending', Bool, self.resume_vending_callback)
 
     def detector_callback(self, msg):
         # get robot's current location and heading
@@ -63,10 +64,39 @@ class Food_Localizer:
             map_msg.coordinates.append(coord)
         self.foodmap_pub.publish(map_msg)
 
+    def publish_food_map(self):
+        map_msg = FoodMap()
+        for obj in self.foodmap.keys():
+            map_msg.objects.append(obj)
+            coord = Pose2D()
+            coord.x = self.foodmap[obj][0]
+            coord.y = self.foodmap[obj][1]
+            coord.theta = 0
+            map_msg.coordinates.append(coord)
+        self.foodmap_pub.publish(map_msg)
+
+
+    def resume_vending_callback(self, msg):
+        # publish new food map
+        map_msg = FoodMap()
+        for obj in self.foodmap.keys():
+            map_msg.objects.append(obj)
+            coord = Pose2D()
+            coord.x = self.foodmap[obj][0]
+            coord.y = self.foodmap[obj][1]
+            coord.theta = 0
+            map_msg.coordinates.append(coord)
+        self.foodmap_pub.publish(map_msg)
+
+
     def run(self):
         rospy.spin()
 
 
 if __name__ == '__main__':
     fl = Food_Localizer()
-    fl.run()
+
+    rate = rospy.Rate(1)
+    while not rospy.is_shutdown():
+        fl.publish_food_map()
+        rate.sleep()
