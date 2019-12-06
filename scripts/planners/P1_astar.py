@@ -21,9 +21,9 @@ class AStar(object):
         self.cost_to_arrive = {}    # dictionary of the cost-to-arrive at state from start (often called g score)
         self.came_from = {}         # dictionary keeping track of each state's parent to reconstruct the path
 
-        self.open_set.add(x_init)
-        self.cost_to_arrive[x_init] = 0
-        self.est_cost_through[x_init] = self.distance(x_init,x_goal)
+        self.open_set.add(self.x_init)
+        self.cost_to_arrive[self.x_init] = 0
+        self.est_cost_through[self.x_init] = self.distance(self.x_init,self.x_goal)
 
         self.path = None        # the final path as a list of states
 

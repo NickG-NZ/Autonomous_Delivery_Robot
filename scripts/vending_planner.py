@@ -54,7 +54,7 @@ class Vending_Planner:
         # rospy.Subscriber('/request_vending_replan', Bool, self.replan_callback)
         rospy.Subscriber('/resume_vending', Bool, self.resume_vending_callback)
 
-    def resume_vending_callback(self):
+    def resume_vending_callback(self,msg):
         # freeze map and food location when in vending mode
         rospy.loginfo('started vending: freezing map and food location')
         self.started_vending = True
@@ -118,6 +118,7 @@ class Vending_Planner:
         for i in range(len(order)):
             if order[i] not in self.food_list:
                 rospy.loginfo('vending: requested food {0} does not exist'.format(order[i]))
+                rospy.loginfo('vending: food available {0}'.format(self.food_list))
                 del order[i]
         # add order to list of food request if new order
         if order not in self.food_reqest:
@@ -129,7 +130,7 @@ class Vending_Planner:
                 self.queue.append([order_num, i])
         self.replan()
 
-    def cmd_callback(self):
+    def cmd_callback(self, msg):
         """
         publish next waypoint
         :return:
@@ -216,10 +217,11 @@ class Vending_Planner:
                 foodj = self.food_list[j]
                 coordj = self.food_waypoint[foodj]
                 # solve Astar
-                problem = AStar(state_min, state_max, coordi, coordj, self.occupancy, self.occupancy.resolution)
+                problem = AStar(state_min, state_max, tuple(coordi), tuple(coordj), self.occupancy, self.occupancy.resolution)
                 success = problem.solve()
                 if success:
                     # get total distance
+                    rospy.loginfo('vending: planned path length is {0}'.format(len(problem.path)))
                     cost = problem.est_cost_through[problem.path[-2]]
                     # assume symmetry, set both i to j and j to i to distance calculated
                     self.distance_mat[i, j] = cost

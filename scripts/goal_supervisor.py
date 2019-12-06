@@ -140,7 +140,7 @@ class GoalSupervisor:
 
     def request_vending_cmd(self):
         msg = Bool()
-        self.request_vending_cmd_publisher(msg)
+        self.request_vending_cmd_publisher.publish(msg)
 
     def publish_cmd_nav(self, msg):
         self.cmd_nav_publisher.publish(msg)
