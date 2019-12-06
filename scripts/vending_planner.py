@@ -41,7 +41,7 @@ class Vending_Planner:
         self.home_coord = [0.0, 0.0]
         # TODO: add dynamic parameter for home coordinate
         # food ordered, list of list of strings, each inner list contains one order
-        self.food_reqest = []
+        self.food_request = []
         self.started_vending = False
         self.planning = False
         self.current_waypoint = []
@@ -122,13 +122,14 @@ class Vending_Planner:
                 rospy.loginfo('vending: food available {0}'.format(self.food_list))
                 del order[i]
         # add order to list of food request if new order
-        if order not in self.food_reqest:
-            rospy.loginfo('vending: received new food request')
-            self.food_reqest.append(order)
-            order_num = len(self.food_reqest)
-            # add all items to queue, the out of bound index represents home
-            for i in range(len(order) + 1):
-                self.queue.append([order_num, i])
+        if order:
+            if order not in self.food_request:
+                rospy.loginfo('vending: received new food request')
+                self.food_request.append(order)
+                order_num = len(self.food_request)
+                # add all items to queue, the out of bound index represents home
+                for i in range(len(order) + 1):
+                    self.queue.append([order_num - 1, i])
         self.replan()
 
     def cmd_callback(self, msg):
@@ -146,10 +147,10 @@ class Vending_Planner:
             self.current_waypoint = obj
             order_num, item_num = obj
             # out of bound index represents home
-            if item_num >= len(self.food_reqest[order_num]):
+            if item_num >= len(self.food_request[order_num]):
                 coord = self.home_coord
             else:
-                coord = self.food_waypoint[self.food_reqest[order_num][item_num]]
+                coord = self.food_waypoint[self.food_request[order_num][item_num]]
         waypoint = Pose2D()
         waypoint.x = coord[0]
         waypoint.y = coord[1]
@@ -205,7 +206,9 @@ class Vending_Planner:
         food_calc = []
         for order in pickups_in_orders:
             for pickup in order:
-                food_calc.append(self.food_reqest[pickup[0]][pickup[1]])
+                food_calc.append(self.food_request[pickup[0]][pickup[1]])
+        food_calc.append('self')
+        food_calc.append('home')
         nfood = len(food_calc)
         # index in distance_mat for each waypoint
         self.mat_index = {}
@@ -288,10 +291,10 @@ class Vending_Planner:
             for waypoint in path:
                 order_iter, item_iter = waypoint
                 # tail of path segment
-                if item_iter >= len(self.food_reqest[order_iter]):
+                if item_iter >= len(self.food_request[order_iter]):
                     tail = self.mat_index['home']
                 else:
-                    tail = self.mat_index[self.food_reqest[order_iter][item_iter]]
+                    tail = self.mat_index[self.food_request[order_iter][item_iter]]
                 distance += self.distance_mat[head, tail]
                 head = tail
             distances.append(distance)
@@ -315,9 +318,13 @@ class Vending_Planner:
         # get items in each order
         pickups_per_order = [x[1] for x in temp]
         # remove home from each order
+
+        rospy.loginfo(self.food_request)
+        rospy.loginfo(pickups_per_order)
+
         for order_iter in range(len(pickups_per_order)):
             pickups_per_order[order_iter] = [x for x in pickups_per_order[order_iter]
-                                             if x[1] < len(self.food_reqest[x[0]])]
+                                             if x[1] < len(self.food_request[x[0]])]
         return pickups_per_order
 
     def run(self):
