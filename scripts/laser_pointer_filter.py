@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import numpy as np
 import cv2
 import rospy
@@ -47,6 +49,13 @@ class LaserPointerFilter():
 
     def compressed_camera_callback(self, msg):
         """ callback for camera images """
+
+        try:
+            self.applicable_horizon
+        except:
+            print("No self.applicable_horizon yet")
+            return
+
         try:
             self.image_cache_rgb = self.bridge.compressed_imgmsg_to_cv2(msg, "passthrough")
         except CvBridgeError as e:
@@ -170,14 +179,12 @@ class LaserPointerFilter():
         return x_goal_map, y_goal_map, theta_goal_map
 
     def publish_laser_pointer_cmd(self):
-        if rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
+        if 1 or rospy.Time.now().secs - self.last_laser_pointer_cmd_publish.secs > \
                         (self.minimum_time_between_publish - 1):
             self.last_laser_pointer_cmd_publish = rospy.Time.now()
             if self.laser_pointer_cmd_cache is not None:
                 #print(self.laser_pointer_cmd_cache)
                 self.laser_pointer_cmd_publisher.publish(self.laser_pointer_cmd_cache)
-            else:
-                print("No Detection")
 
     def run(self):
         rospy.spin()

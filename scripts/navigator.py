@@ -60,7 +60,8 @@ class Navigator:
         self.occupancy = None
         self.prev_occupancy = None
         self.occupancy_updated = False
-        self.collision_thresh = 0.3
+        self.window_size = 6
+        self.collision_thresh = 0.4
         self.map_diff_thresh = 0.1
 
         # plan parameters
@@ -80,7 +81,7 @@ class Navigator:
         self.v_max = rospy.get_param('/navigator/v_max', 0.2)
         self.om_max = rospy.get_param('/navigator/om_max', 0.4)
 
-        self.v_des = 0.12   # desired cruising velocity, used for path smoothing
+        self.v_des = 0.10   # desired cruising velocity, used for path smoothing
         self.theta_start_thresh = 0.05   # threshold in theta to start moving forward when path-following
         self.start_pos_thresh = 0.2     # threshold to be far enough into the plan to recompute it
 
@@ -88,7 +89,7 @@ class Navigator:
         self.near_thresh = 0.2
         # threshold at which navigator switches from park to idle
         self.at_thresh = 0.02
-        self.at_thresh_theta = 0.05
+        self.at_thresh_theta = np.pi  # default 0.5
 
         # Stop sign maneuver parameters
         self.stopped = False
@@ -101,7 +102,7 @@ class Navigator:
         self.cross_start_time = None
 
         # trajectory smoothing
-        self.spline_alpha = 0.15
+        self.spline_alpha = 0.01
         self.traj_dt = 0.1
 
         # trajectory tracking controller parameters
@@ -111,7 +112,7 @@ class Navigator:
         self.kdy = 1.5
 
         # heading controller parameters
-        self.kp_th = 2.
+        self.kp_th = 1.5
 
         self.traj_controller = TrajectoryTracker(self.kpx, self.kpy, self.kdx, self.kdy, self.v_max, self.om_max)
         # k1, k2, k3 initialized as zeros, later updated from dynamic parameters. line 120
@@ -216,11 +217,11 @@ class Navigator:
                                                   self.map_height,
                                                   self.map_origin[0],
                                                   self.map_origin[1],
-                                                  8,
+                                                  self.window_size,
                                                   map_probs,
                                                   self.collision_thresh)
 
-            if self.x_g is not None and self.map_difference_check():
+            if self.x_g is not None and self.prev_occupancy is not None and self.map_difference_check():
                 # if we have a goal to plan to and map changed significantly, re-plan
                 rospy.loginfo("REPLANNING BECAUSE OF NEW MAP")
                 self.occupancy_updated = True

@@ -36,6 +36,7 @@ class Vending_Planner:
         self.distance_mat = np.array([])
         # list of food, to get index for distance_mat
         self.food_list = []
+        self.mat_index = {}
         # coordinate of home, where food will be delivered to
         self.home_coord = [0.0, 0.0]
         # TODO: add dynamic parameter for home coordinate
@@ -118,7 +119,7 @@ class Vending_Planner:
         for i in range(len(order)):
             if order[i] not in self.foodmap.keys():
                 rospy.loginfo('vending: requested food {0} does not exist'.format(order[i]))
-                rospy.loginfo('vending: food available {0}'.format(self.foodmap.keys()))
+                rospy.loginfo('vending: food available {0}'.format(self.food_list))
                 del order[i]
         # add order to list of food request if new order
         if order not in self.food_reqest:
@@ -201,7 +202,7 @@ class Vending_Planner:
         self.food_waypoint['self'] = [x, y]
         # create list of food so index of each objects is fixed
         self.food_list = self.food_waypoint.keys()
-        food_calc =[]
+        food_calc = []
         for order in pickups_in_orders:
             for pickup in order:
                 food_calc.append(self.food_reqest[pickup[0]][pickup[1]])
@@ -229,6 +230,7 @@ class Vending_Planner:
                 success = problem.solve()
                 if success:
                     # get total distance
+                    rospy.loginfo('vending: planned path length is {0}'.format(len(problem.path)))
                     cost = problem.est_cost_through[problem.path[-2]]
                     # assume symmetry, set both i to j and j to i to distance calculated
                     self.distance_mat[i, j] = cost
