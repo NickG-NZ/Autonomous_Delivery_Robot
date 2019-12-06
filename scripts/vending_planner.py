@@ -54,7 +54,7 @@ class Vending_Planner:
         # rospy.Subscriber('/request_vending_replan', Bool, self.replan_callback)
         rospy.Subscriber('/resume_vending', Bool, self.resume_vending_callback)
 
-    def resume_vending_callback(self):
+    def resume_vending_callback(self, msg):
         # freeze map and food location when in vending mode
         rospy.loginfo('started vending: freezing map and food location')
         self.started_vending = True
@@ -105,7 +105,7 @@ class Vending_Planner:
             for ind in range(len(msg.objects)):
                 obj = msg.objects[ind]
                 coord = msg.coordinates[ind]
-                self.foodmap[obj.data] = np.array([coord.x, coord.y])
+                self.foodmap[obj] = np.array([coord.x, coord.y])
             self.foodmap['home'] = self.home_coord
 
     def request_callback(self, msg):
@@ -116,8 +116,9 @@ class Vending_Planner:
         """
         order = msg.data.split(',')
         for i in range(len(order)):
-            if order[i] not in self.food_list:
+            if order[i] not in self.foodmap.keys():
                 rospy.loginfo('vending: requested food {0} does not exist'.format(order[i]))
+                rospy.loginfo('vending: food available {0}'.format(self.foodmap.keys()))
                 del order[i]
         # add order to list of food request if new order
         if order not in self.food_reqest:
@@ -129,7 +130,7 @@ class Vending_Planner:
                 self.queue.append([order_num, i])
         self.replan()
 
-    def cmd_callback(self):
+    def cmd_callback(self, msg):
         """
         publish next waypoint
         :return:
@@ -185,7 +186,7 @@ class Vending_Planner:
             self.food_waypoint[obj] = waypoint
         return
 
-    def build_connected_graph(self):
+    def build_connected_graph(self, pickups_in_orders):
         """
         calculate the distance between current location, each food object, and home
         :return: None. Update self.distance_mat, such that element i, j is the distance from food i to food j,
@@ -200,7 +201,15 @@ class Vending_Planner:
         self.food_waypoint['self'] = [x, y]
         # create list of food so index of each objects is fixed
         self.food_list = self.food_waypoint.keys()
-        nfood = len(self.food_list)
+        food_calc =[]
+        for order in pickups_in_orders:
+            for pickup in order:
+                food_calc.append(self.food_reqest[pickup[0]][pickup[1]])
+        nfood = len(food_calc)
+        # index in distance_mat for each waypoint
+        self.mat_index = {}
+        for ind in range(len(food_calc)):
+            self.mat_index[food_calc[ind]] = ind
         # bounds for Astar search
         state_min = np.array([self.occupancy.origin_x, self.occupancy.origin_y])
         state_max = np.array([self.occupancy.origin_x + self.occupancy.resolution * self.occupancy.width,
@@ -208,15 +217,15 @@ class Vending_Planner:
         # init distance_mat
         self.distance_mat = np.full([nfood, nfood], np.inf)
         for i in range(nfood):
-            foodi = self.food_list[i]
+            foodi = food_calc[i]
             coordi = self.food_waypoint[foodi]
             # distance to self is zero
             self.distance_mat[i, i] = 0
             for j in range(i):
-                foodj = self.food_list[j]
+                foodj = food_calc[j]
                 coordj = self.food_waypoint[foodj]
                 # solve Astar
-                problem = AStar(state_min, state_max, coordi, coordj, self.occupancy, self.occupancy.resolution)
+                problem = AStar(state_min, state_max, tuple(coordi), tuple(coordj), self.occupancy, self.occupancy.resolution)
                 success = problem.solve()
                 if success:
                     # get total distance
@@ -233,22 +242,18 @@ class Vending_Planner:
         """
         rospy.loginfo('vending: planning waypoints')
         self.planning = True
+        # items that still need to be picked up in each order
+        pickups_in_orders = self.get_pickups()
         self.find_waypoints()
-        self.build_connected_graph()
+        self.build_connected_graph(pickups_in_orders)
         # generate all possible paths, and calculate distances
         paths = []
         distances = []
-        # items that still need to be picked up in each order
-        pickups_in_orders = self.get_pickups()
         order_numbers = len(pickups_in_orders)
         # number of pickups in each order
         num_pickups_order = [len(pickups_in_orders[i]) for i in range(order_numbers)]
         # waypoint required for each item pickup and each order drop off
         waypoint_number = sum(num_pickups_order) + order_numbers
-        # index in distance_mat for each waypoint
-        mat_index = {}
-        for ind in range(len(self.food_list)):
-            mat_index[self.food_list[ind]] = ind
         # generate paths through permutation
         temp = []
         # pickups_in_orders is sorted with earliest orders last, generate permutations starting with latest orders
@@ -277,14 +282,14 @@ class Vending_Planner:
             # calculate total distance for the path
             distance = 0
             # head of path segment
-            head = mat_index['self']
+            head = self.mat_index['self']
             for waypoint in path:
                 order_iter, item_iter = waypoint
                 # tail of path segment
                 if item_iter >= len(self.food_reqest[order_iter]):
-                    tail = mat_index['home']
+                    tail = self.mat_index['home']
                 else:
-                    tail = mat_index[self.food_reqest[order_iter][item_iter]]
+                    tail = self.mat_index[self.food_reqest[order_iter][item_iter]]
                 distance += self.distance_mat[head, tail]
                 head = tail
             distances.append(distance)
