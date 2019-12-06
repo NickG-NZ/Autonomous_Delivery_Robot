@@ -60,6 +60,7 @@ class Navigator:
         self.occupancy = None
         self.prev_occupancy = None
         self.occupancy_updated = False
+        self.window_size = 6
         self.collision_thresh = 0.4
         self.map_diff_thresh = 0.1
 
@@ -216,7 +217,7 @@ class Navigator:
                                                   self.map_height,
                                                   self.map_origin[0],
                                                   self.map_origin[1],
-                                                  8,
+                                                  self.window_size,
                                                   map_probs,
                                                   self.collision_thresh)
 
