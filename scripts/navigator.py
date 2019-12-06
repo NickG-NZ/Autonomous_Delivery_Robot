@@ -290,6 +290,9 @@ class Navigator:
         returns whether the robot has reached the goal position with enough
         accuracy to return to idle state
         """
+        if self.theta_g is None:
+            return 1
+
         #return (linalg.norm(np.array([self.x-self.x_g, self.y-self.y_g])) < self.at_thresh and abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta)
         return abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta
 
@@ -393,7 +396,13 @@ class Navigator:
         # Attempt to plan a path
         state_min = self.snap_to_grid((-self.plan_horizon, -self.plan_horizon))
         state_max = self.snap_to_grid((self.plan_horizon, self.plan_horizon))
-        x_init = self.snap_to_grid((self.x, self.y))
+
+        try:
+            x_init = self.snap_to_grid((self.x, self.y))
+        except:
+            import ipdb; ipdb.set_trace()
+            x_init = self.snap_to_grid((self.x, self.y))
+
         self.plan_start = x_init
         x_goal = self.snap_to_grid((self.x_g, self.y_g))
         problem = AStar(state_min, state_max, x_init, x_goal, self.occupancy, self.plan_resolution)

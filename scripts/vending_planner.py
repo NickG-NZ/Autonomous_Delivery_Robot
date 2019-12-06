@@ -115,47 +115,53 @@ class Vending_Planner:
         :param msg: new food request, detail see request_publisher.py
         :return: None, updates self.queue
         """
-        order = msg.data.split(',')
-        for i in range(len(order)):
-            if order[i] not in self.foodmap.keys():
-                rospy.loginfo('vending: requested food {0} does not exist'.format(order[i]))
-                rospy.loginfo('vending: food available {0}'.format(self.food_list))
-                del order[i]
-        # add order to list of food request if new order
-        if order:
-            if order not in self.food_request:
-                rospy.loginfo('vending: received new food request')
-                self.food_request.append(order)
-                order_num = len(self.food_request)
-                # add all items to queue, the out of bound index represents home
-                for i in range(len(order) + 1):
-                    self.queue.append([order_num - 1, i])
-        self.replan()
+        if not self.planning:
+            self.planning = True
+            order = msg.data.split(',')
+            for i in range(len(order)):
+                if order[i] not in self.foodmap.keys():
+                    rospy.loginfo('vending: requested food {0} does not exist'.format(order[i]))
+                    rospy.loginfo('vending: food available {0}'.format(self.food_list))
+                    del order[i]
+            # add order to list of food request if new order
+            if order:
+                if order not in self.food_request:
+                    rospy.loginfo('vending: received new food request')
+                    self.food_request.append(order)
+                    order_num = len(self.food_request)
+                    # add all items to queue, the out of bound index represents home
+                    for i in range(len(order) + 1):
+                        self.queue.append([order_num - 1, i])
+            rospy.loginfo('request list after call back is {0}'.format(self.food_request))
+            rospy.loginfo('queue after request call back is {0}'.format(self.queue))
+            self.replan()
+            self.planning = False
 
     def cmd_callback(self, msg):
         """
         publish next waypoint
         :return:
         """
-        if not self.queue:
-            rospy.loginfo('vending: queue empty and there is no new request, sending home coordinate')
-            coord = self.home_coord
-        else:
-            # remove first waypoint from queue and publish it
-            obj = self.queue.pop(0)
-            # record current waypoint label
-            self.current_waypoint = obj
-            order_num, item_num = obj
-            # out of bound index represents home
-            if item_num >= len(self.food_request[order_num]):
+        if not self.planning:
+            if not self.queue:
+                rospy.loginfo('vending: queue empty and there is no new request, sending home coordinate')
                 coord = self.home_coord
             else:
-                coord = self.food_waypoint[self.food_request[order_num][item_num]]
-        waypoint = Pose2D()
-        waypoint.x = coord[0]
-        waypoint.y = coord[1]
-        waypoint.theta = 0
-        self.waypoint_pub.publish(waypoint)
+                # remove first waypoint from queue and publish it
+                obj = self.queue.pop(0)
+                # record current waypoint label
+                self.current_waypoint = obj
+                order_num, item_num = obj
+                # out of bound index represents home
+                if item_num >= len(self.food_request[order_num]):
+                    coord = self.home_coord
+                else:
+                    coord = self.food_waypoint[self.food_request[order_num][item_num]]
+            waypoint = Pose2D()
+            waypoint.x = coord[0]
+            waypoint.y = coord[1]
+            waypoint.theta = 0
+            self.waypoint_pub.publish(waypoint)
 
     # def replan_callback(self):
     #     if not self.planning:
@@ -234,6 +240,7 @@ class Vending_Planner:
                 if success:
                     # get total distance
                     rospy.loginfo('vending: planned path length is {0}'.format(len(problem.path)))
+                    #import ipdb; ipdb.set_trace()
                     cost = problem.est_cost_through[problem.path[-2]]
                     # assume symmetry, set both i to j and j to i to distance calculated
                     self.distance_mat[i, j] = cost
@@ -245,8 +252,8 @@ class Vending_Planner:
         replane vending path by calculating distance for every possible order of pick up and drop off
         :return: None, updates self.queue
         """
-        rospy.loginfo('vending: planning waypoints')
         self.planning = True
+        rospy.loginfo('vending: planning waypoints')
         # items that still need to be picked up in each order
         pickups_in_orders = self.get_pickups()
         self.find_waypoints()
@@ -301,6 +308,7 @@ class Vending_Planner:
         # find min distance and corresponding path
         optim_ind = distances.index(min(distances))
         self.queue = paths[optim_ind]
+        self.planning = False
 
     def get_pickups(self):
         """
@@ -318,9 +326,6 @@ class Vending_Planner:
         # get items in each order
         pickups_per_order = [x[1] for x in temp]
         # remove home from each order
-
-        rospy.loginfo(self.food_request)
-        rospy.loginfo(pickups_per_order)
 
         for order_iter in range(len(pickups_per_order)):
             pickups_per_order[order_iter] = [x for x in pickups_per_order[order_iter]

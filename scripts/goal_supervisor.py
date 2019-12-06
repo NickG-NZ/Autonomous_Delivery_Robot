@@ -143,7 +143,8 @@ class GoalSupervisor:
         self.request_vending_cmd_publisher.publish(msg)
 
     def publish_cmd_nav(self, msg):
-        self.cmd_nav_publisher.publish(msg)
+        if msg is not None:
+            self.cmd_nav_publisher.publish(msg)
 
     def run(self):
         rate = rospy.Rate(10)  # 10 Hz

@@ -42,7 +42,7 @@ class Food_Localizer:
             obj_x = robot_x + obj_dist * np.cos(robot_theta + obj_theta)
             obj_y = robot_y + obj_dist * np.sin(robot_theta + obj_theta)
             obj_coord = np.array([obj_x, obj_y])
-            rospy.loginfo("food location: detected {0} at {1}".format(obj, obj_coord))
+            #rospy.loginfo("food location: detected {0} at {1}".format(obj, obj_coord))
             # update foodmap
             if obj not in self.foodmap.keys():
                 self.foodmap[obj] = obj_coord
