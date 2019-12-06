@@ -82,14 +82,14 @@ class Navigator:
         self.om_max = rospy.get_param('/navigator/om_max', 0.4)
 
         self.v_des = 0.10   # desired cruising velocity, used for path smoothing
-        self.theta_start_thresh = 0.05   # threshold in theta to start moving forward when path-following
+        self.theta_start_thresh = 0.1   # threshold in theta to start moving forward when path-following
         self.start_pos_thresh = 0.2     # threshold to be far enough into the plan to recompute it
 
         # threshold at which navigator switches from trajectory to pose control
-        self.near_thresh = 0.2
+        self.near_thresh = 0.05
         # threshold at which navigator switches from park to idle
         self.at_thresh = 0.02
-        self.at_thresh_theta = np.pi  # default 0.5
+        self.at_thresh_theta = 0.1  # default 0.5
 
         # Stop sign maneuver parameters
         self.stopped = False
@@ -112,7 +112,7 @@ class Navigator:
         self.kdy = 1.5
 
         # heading controller parameters
-        self.kp_th = 1.5
+        self.kp_th = 2
 
         self.traj_controller = TrajectoryTracker(self.kpx, self.kpy, self.kdx, self.kdy, self.v_max, self.om_max)
         # k1, k2, k3 initialized as zeros, later updated from dynamic parameters. line 120
@@ -290,7 +290,8 @@ class Navigator:
         returns whether the robot has reached the goal position with enough
         accuracy to return to idle state
         """
-        return (linalg.norm(np.array([self.x-self.x_g, self.y-self.y_g])) < self.at_thresh and abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta)
+        #return (linalg.norm(np.array([self.x-self.x_g, self.y-self.y_g])) < self.at_thresh and abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta)
+        return abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta
 
     def aligned(self):
         """
@@ -343,7 +344,9 @@ class Navigator:
         t = self.get_current_plan_time()
 
         if self.mode == Mode.PARK:
-            V, om = self.pose_controller.compute_control(self.x, self.y, self.theta, t)
+            #V, om = self.pose_controller.compute_control(self.x, self.y, self.theta, t)
+            self.heading_controller.load_goal(self.theta_g)
+            V, om = self.heading_controller.compute_control(self.x, self.y, self.theta, t)
         elif self.mode == Mode.TRACK:
             V, om = self.traj_controller.compute_control(self.x, self.y, self.theta, t)
         elif self.mode == Mode.ALIGN:
