@@ -23,10 +23,10 @@ class LaserPointerFilter():
         self.trans_listener = tf.TransformListener()
 
         # camera and laser parameters that get updated
-        self.cx = 198.4 #0.
-        self.cy = 155.5 #0.
-        self.fx = 329.2 # 0.00304 # 1.
-        self.fy = 329.1 #0.00304 # 1
+        self.cx = 198.4
+        self.cy = 155.5
+        self.fx = 329.2
+        self.fy = 329.1
 
         # filter attributes
         self.image_cache_rgb = None
