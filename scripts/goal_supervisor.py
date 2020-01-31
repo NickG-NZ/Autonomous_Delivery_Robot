@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import rospy
 from geometry_msgs.msg import Pose2D, PoseStamped
 from std_msgs.msg import Bool
@@ -45,6 +47,7 @@ class GoalSupervisor:
     def main_loop(self):
 
         if self.publish_cmd: # if update flag was activated
+            self.publish_cmd = False  # ensures each command is sent once
 
             if self.rviz_control:
 
@@ -70,7 +73,6 @@ class GoalSupervisor:
             else:
                 print("idle mode")
 
-            self.publish_cmd = False  # ensures each command is sent once
 
     def clear_cmd_caches(self):
     	# clears all command caches so that previous commands don't haunt the supervisor
@@ -138,10 +140,11 @@ class GoalSupervisor:
 
     def request_vending_cmd(self):
         msg = Bool()
-        self.request_vending_cmd_publisher(msg)
+        self.request_vending_cmd_publisher.publish(msg)
 
     def publish_cmd_nav(self, msg):
-        self.cmd_nav_publisher.publish(msg)
+        if msg is not None:
+            self.cmd_nav_publisher.publish(msg)
 
     def run(self):
         rate = rospy.Rate(10)  # 10 Hz
