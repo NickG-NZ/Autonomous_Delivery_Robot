@@ -60,8 +60,7 @@ class Navigator:
         self.occupancy = None
         self.prev_occupancy = None
         self.occupancy_updated = False
-        self.window_size = 6
-        self.collision_thresh = 0.4
+        self.collision_thresh = 0.3
         self.map_diff_thresh = 0.1
 
         # plan parameters
@@ -81,15 +80,15 @@ class Navigator:
         self.v_max = rospy.get_param('/navigator/v_max', 0.2)
         self.om_max = rospy.get_param('/navigator/om_max', 0.4)
 
-        self.v_des = 0.10   # desired cruising velocity, used for path smoothing
-        self.theta_start_thresh = 0.1   # threshold in theta to start moving forward when path-following
+        self.v_des = 0.12   # desired cruising velocity, used for path smoothing
+        self.theta_start_thresh = 0.05   # threshold in theta to start moving forward when path-following
         self.start_pos_thresh = 0.2     # threshold to be far enough into the plan to recompute it
 
         # threshold at which navigator switches from trajectory to pose control
-        self.near_thresh = 0.05
+        self.near_thresh = 0.2
         # threshold at which navigator switches from park to idle
         self.at_thresh = 0.02
-        self.at_thresh_theta = 0.1  # default 0.5
+        self.at_thresh_theta = 0.05
 
         # Stop sign maneuver parameters
         self.stopped = False
@@ -102,7 +101,7 @@ class Navigator:
         self.cross_start_time = None
 
         # trajectory smoothing
-        self.spline_alpha = 0.01
+        self.spline_alpha = 0.15
         self.traj_dt = 0.1
 
         # trajectory tracking controller parameters
@@ -112,7 +111,7 @@ class Navigator:
         self.kdy = 1.5
 
         # heading controller parameters
-        self.kp_th = 2
+        self.kp_th = 2.
 
         self.traj_controller = TrajectoryTracker(self.kpx, self.kpy, self.kdx, self.kdy, self.v_max, self.om_max)
         # k1, k2, k3 initialized as zeros, later updated from dynamic parameters. line 120
@@ -217,11 +216,11 @@ class Navigator:
                                                   self.map_height,
                                                   self.map_origin[0],
                                                   self.map_origin[1],
-                                                  self.window_size,
+                                                  8,
                                                   map_probs,
                                                   self.collision_thresh)
 
-            if self.x_g is not None and self.prev_occupancy is not None and self.map_difference_check():
+            if self.x_g is not None and self.map_difference_check():
                 # if we have a goal to plan to and map changed significantly, re-plan
                 rospy.loginfo("REPLANNING BECAUSE OF NEW MAP")
                 self.occupancy_updated = True
@@ -290,11 +289,7 @@ class Navigator:
         returns whether the robot has reached the goal position with enough
         accuracy to return to idle state
         """
-        if self.theta_g is None:
-            return 1
-
-        #return (linalg.norm(np.array([self.x-self.x_g, self.y-self.y_g])) < self.at_thresh and abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta)
-        return abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta
+        return (linalg.norm(np.array([self.x-self.x_g, self.y-self.y_g])) < self.at_thresh and abs(wrapToPi(self.theta - self.theta_g)) < self.at_thresh_theta)
 
     def aligned(self):
         """
@@ -347,9 +342,7 @@ class Navigator:
         t = self.get_current_plan_time()
 
         if self.mode == Mode.PARK:
-            #V, om = self.pose_controller.compute_control(self.x, self.y, self.theta, t)
-            self.heading_controller.load_goal(self.theta_g)
-            V, om = self.heading_controller.compute_control(self.x, self.y, self.theta, t)
+            V, om = self.pose_controller.compute_control(self.x, self.y, self.theta, t)
         elif self.mode == Mode.TRACK:
             V, om = self.traj_controller.compute_control(self.x, self.y, self.theta, t)
         elif self.mode == Mode.ALIGN:
@@ -396,13 +389,7 @@ class Navigator:
         # Attempt to plan a path
         state_min = self.snap_to_grid((-self.plan_horizon, -self.plan_horizon))
         state_max = self.snap_to_grid((self.plan_horizon, self.plan_horizon))
-
-        try:
-            x_init = self.snap_to_grid((self.x, self.y))
-        except:
-            import ipdb; ipdb.set_trace()
-            x_init = self.snap_to_grid((self.x, self.y))
-
+        x_init = self.snap_to_grid((self.x, self.y))
         self.plan_start = x_init
         x_goal = self.snap_to_grid((self.x_g, self.y_g))
         problem = AStar(state_min, state_max, x_init, x_goal, self.occupancy, self.plan_resolution)
