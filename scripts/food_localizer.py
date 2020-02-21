@@ -7,6 +7,9 @@ from std_msgs.msg import Bool, String
 import tf
 import numpy as np
 
+def wrapTo2Pi(theta):
+    return theta % (2*np.pi)
+
 
 class Food_Localizer:
     def __init__(self):
@@ -30,7 +33,7 @@ class Food_Localizer:
         robot_x = translation[0]
         robot_y = translation[1]
         euler = tf.transformations.euler_from_quaternion(rotation)
-        robot_theta = euler[2]
+        robot_theta = wrapTo2Pi(euler[2])
 
         objects = msg.objects
         data_list = msg.ob_msgs
@@ -38,8 +41,18 @@ class Food_Localizer:
             # get location of the object
             obj = objects[ind]
             data = data_list[ind]
-            obj_theta = (data.thetaleft + data.thetaright) / 2.0
+
+            thetaleft = wrapTo2Pi(data.thetaleft)
+            thetaright = wrapTo2Pi(data.thetaright)
+
+            obj_theta = (thetaleft + thetaright) / 2.0
+            if thetaright > thetaleft:
+                obj_theta += np.pi
+
+            obj_theta = wrapTo2Pi(obj_theta)
+
             obj_dist = data.distance
+
             obj_x = robot_x + obj_dist * np.cos(robot_theta + obj_theta)
             obj_y = robot_y + obj_dist * np.sin(robot_theta + obj_theta)
             obj_coord = np.array([obj_x, obj_y])
