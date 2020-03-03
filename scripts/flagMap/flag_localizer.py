@@ -2,22 +2,20 @@
 
 import rospy
 from asl_turtlebot.msg import DetectedObject, DetectedObjectList
+from std_msgs.msg import Int64
+from geometry_msgs.msg import Pose2D
 
 
 class FlagLocalizer():
     def __init__(self):
-
-        rospy.init_node("flag_localizer", anonymous='true')
 
         self.detected_flags = {}
         self.oracle_flags = {}
         self.flag_moved_threshold = 0.01
         self.mapping_done = False
 
-        rospy.Subscriber("detector/object", DetectedObjectList, object_detected_callback)
-        rospy.Subscriber("oracle/flag_correction", DetectedObjectList, oracle_correction_callback)
 
-    def object_detected_callback(self, msg):
+    def object_detected(self, msg):
         flag_list = msg.objects
         flag_state = msg.ob_msgs
 
@@ -32,6 +30,58 @@ class FlagLocalizer():
                 # If the new object location is close, take the average
 
 
+    def oracle_correction(self, msg):
+        pass
+
+    def flag_query(self, msg):
+        pass
+
+    def publish_map(self, msg):
+        pass
 
 
+class FlagLocalizerNode():
+    def __init__(self):
+        rospy.init_node("flag_localizer", anonymous='true')
+
+        # Modularize functionality
+        self.flag_localizer = FlagLocalizer()
+
+        # Publishers
+        rospy.Publisher("flagmap/response", Pose2D, queue_size=10)
+        rospy.Publisher("")
+
+        # Subscribers
+        rospy.Subscriber("detector/object", DetectedObjectList, self.object_detected_callback)
+        rospy.Subscriber("oracle/flag_correction", DetectedObjectList, self.oracle_correction_callback)
+        rospy.Subscriber("flagmap/query", Int64, self.flag_query_callback)
+
+
+    def object_detected_callback(self, msg):
+        self.flag_localizer.object_detected(msg)
+
+    def oracle_correction_callback(self, msg):
+        self.flag_localizer.oracle_correction(msg)
+
+    def flag_query_callback(self, msg):
+        self.flag_localizer.flag_query(msg)
+
+    def publish_map(self):
+        pass
+
+    def run(self):
+        if not rospy.is_shutdown():
+            rospy.Spin()
+
+
+
+
+
+
+if __name__ == '__main__':
+    flg = FlagLocalizerNode()
+    try:
+        flg.run()
+    except rospy.ROSInterruptException:
+        pass
 
