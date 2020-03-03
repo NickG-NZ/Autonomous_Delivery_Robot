@@ -1,0 +1,10 @@
+List of things to do
+====================
+
+- Change the RVIZ configuration to display the "flag_visualizer" topic
+	-> Can manually edit asl_turtlebot/launch/project_rviz.rviz
+	 	This is called by final_rviz.launch
+
+	-> Can load up a blank rviz, turn on the topics we want, save the configuration
+		then overwrite project_rviz.rviz with this new configuration
+
