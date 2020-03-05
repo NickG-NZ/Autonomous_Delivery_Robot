@@ -10,10 +10,16 @@ List of things to do
 
 - Write new launch file
 
-- Make sure "state_change" topic is correct for determinig when to lock "oracle flags"
+- Make sure "state_change" topic name (from Jason) is correct for determinig when to lock "oracle flags"
 
 - Check camera parameters are correct (detector_mobilenet.py)
 	project_pixel_to_ray takes in u,v in pixel counts
 	self.cx, etc also need to be in pixel counts
 
 - Check that markers move on map when republished (not duplicated etc.)
+
+- Pull update to detector (and possibly any others) to Cosmo
+
+- Implement functionality for identifying the opponent vs. a flag (And publishing it)
+
+- Test the robot identifying our flag by spoofing the opponent location

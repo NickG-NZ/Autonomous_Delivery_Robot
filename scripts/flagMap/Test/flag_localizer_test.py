@@ -20,10 +20,9 @@ class FlagLocalizerTest(unittest.TestCase):
 		self.assertAlmostEqual(flg.wrap2pi(3.5*np.pi), -0.5*np.pi, places=6)  # angle with extra 2pi added to it
 
 	def test_calc_flag_position(self):
+		flg = FlagLocalizer()
 		# Set: Robot(x,y,th), Flag(d,th_l,th_r)
 		# ---------------------------------
-		flg = FlagLocalizer()
-
 		# R(0,0,0), F(0,0,0)
 		robot_pose = [0.0, 0.0, 0.0]
 		flag = DetectedObject(distance=0, thetaleft=0, thetaright=0)

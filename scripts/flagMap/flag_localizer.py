@@ -8,41 +8,51 @@ class FlagLocalizer(object):
         self.detected_flags = {}  # {(int)id: np.array([x, y])}
         self.flag_counts = {}  # {(int) id: int num_times_seen}
         self.oracle_flags = {}
-        self.flag_move_threshold = 0.03
-        self.mapping_done = False
+        self.flag_move_threshold = 0.05
+        self.game_started = False
+        self.opponent_pose = None  # numpy array
+        self.flag_is_opponent_tol = 0.01
+        self.our_flag = None  # int
 
     def object_detected(self, msg, robot_pose):
         map_changed = False
+        opponent_detected = False
         flags_detected = msg.ob_msgs  # list of DetectedObject messages
 
         for flag in flags_detected:
-            # Check if oracle has placed the object somewhere (don't move it until game starts)
-            if flag.id in self.oracle_flags.keys() and not self.mapping_done:
+            # Check if oracle has placed this flag somewhere (don't move it until game starts)
+            if flag.id in self.oracle_flags.keys() and not self.game_started:
                 continue
 
             flag_pos = self.calc_flag_position(flag, robot_pose)
-            if flag.id in self.detected_flags.keys():
 
+            # Check if the flag is the opponent
+            if self.game_started and self.opponent_pose and \
+                    (np.linalg.norm(self.opponent_pose[:2] - flag_pos) < self.flag_is_opponent_tol):
+                opponent_detected = True
+                self.our_flag = flag.id
+
+            elif flag.id in self.detected_flags.keys():
                 # If new location is far from old location, move flag
                 if np.linalg.norm(flag_pos - self.detected_flags[flag.id]) > self.flag_move_threshold:
                     self.detected_flags[flag.id] = flag_pos
                     self.flag_counts[flag.id] = 1
+                    map_changed = True
 
                 # Else average the position with the old position
                 else:
                     self.detected_flags[flag.id] = (self.detected_flags[flag.id] *
                                                     self.flag_counts[flag.id] + flag_pos) / (self.flag_counts[flag.id] + 1)
                     self.flag_counts[flag.id] += 1
+                    map_changed = True
 
-            # Else add flag to detected flags
+            # If never seen before, add the flag to detected flags
             else:
                 self.detected_flags[flag.id] = flag_pos
                 self.flag_counts[flag.id] = 1
-            map_changed = True
+                map_changed = True
 
-        if map_changed:
-            return True
-        return False
+        return map_changed, opponent_detected
 
     def calc_flag_position(self, flag_object, robot_pose):
         # Angles from detector_mobile_net are in range (0, 2pi]

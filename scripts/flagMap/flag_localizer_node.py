@@ -12,20 +12,20 @@ from flag_localizer import FlagLocalizer
 class FlagLocalizerNode(object, FlagLocalizer):
     def __init__(self):
         super(FlagLocalizerNode, self).__init__()
-        rospy.init_node("flag_localizer", anonymous=True)
 
-        # Modularize functionality
+        rospy.init_node("flag_localizer", anonymous=True)
         self.tfListener = tf.TransformListener()
 
         # Publishers
         self.query_response_pub = rospy.Publisher("flagmap/response", Pose2D, queue_size=10)
         self.flag_map_pub = rospy.Publisher("flag_map", FlagMap, queue_size=10)
+        self.our_flag_pub = rospy.Publisher("our_flag", Int64, queue_size=10)
 
         # Subscribers
         rospy.Subscriber("detector/objects", DetectedObjectList, self.object_detected_callback)
         rospy.Subscriber("oracle/flag_correction", Pose2D, self.oracle_correction_callback)
         rospy.Subscriber("flagmap/query", Int64, self.flag_query_callback)
-        rospy.Subscriber("state_correction", String, self.mapping_done_callback)
+        rospy.Subscriber("state_correction", String, self.game_started_callback)
 
     def object_detected_callback(self, msg):
         # Get robot's pose
@@ -39,8 +39,12 @@ class FlagLocalizerNode(object, FlagLocalizer):
             rospy.loginfo("Couldn't place detected flag because robot pose is unknown")
             print e
             return
-        # Place flag on map (or update it's location)
-        map_changed = self.object_detected(msg, robot_pose)
+        # Place flags on map (or update their locations)
+        map_changed, opponent_detected = self.object_detected(msg, robot_pose)
+
+        if opponent_detected:
+            self.our_flag_pub.publish(self.our_flag)
+            rospy.loginfo("We know our flag")
         if map_changed:
             self.publish_map()
             rospy.loginfo("Updated the flag map")
@@ -62,9 +66,9 @@ class FlagLocalizerNode(object, FlagLocalizer):
         self.query_response_pub.publish(pose)
         rospy.loginfo("Responded to query about flag: %d", flag_id)
 
-    def mapping_done_callback(self, msg):
+    def game_started_callback(self, msg):
         if msg == "go_to_opponent":
-            self.mapping_done = True
+            self.game_started = True
 
     def publish_map(self):
         flag_map = FlagMap()
