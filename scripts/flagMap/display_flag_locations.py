@@ -14,8 +14,8 @@ class FlagVisualizerNode():
         rospy.Subscriber("flag_map", FlagMap, self.publish_map_callback)
 
     def publish_map_callback(self, msg):
-    	for flag, idx in enumerate(msg.objects):
-    		pose = msg.coordinates[idx]  # pose2D
+        for flag, idx in enumerate(msg.objects):
+            pose = msg.coordinates[idx]  # pose2D
             marker = Marker()
             marker.header.frame_id = "map"
             marker.header.stamp = rospy.Time()

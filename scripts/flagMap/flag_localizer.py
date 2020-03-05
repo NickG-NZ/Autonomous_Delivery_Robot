@@ -46,8 +46,8 @@ class FlagLocalizer(object):
 
     def calc_flag_position(self, flag_object, robot_pose):
         # Angles from detector_mobile_net are in range (0, 2pi]
-        theta_left = self.wrap2pi(flag_object.theta_left)
-        theta_right = self.wrap2pi(flag_object.theta_right)
+        theta_left = self.wrap2pi(flag_object.thetaleft)
+        theta_right = self.wrap2pi(flag_object.thetaright)
 
         if theta_left > 0.0 > theta_right:
             theta_avg = theta_left + theta_right + robot_pose[2]
