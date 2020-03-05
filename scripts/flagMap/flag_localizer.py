@@ -58,11 +58,7 @@ class FlagLocalizer(object):
         # Angles from detector_mobile_net are in range (0, 2pi]
         theta_left = self.wrap2pi(flag_object.thetaleft)
         theta_right = self.wrap2pi(flag_object.thetaright)
-
-        if theta_left > 0.0 > theta_right:
-            theta_avg = theta_left + theta_right + robot_pose[2]
-        else:
-            theta_avg = (theta_left + theta_right) / 2.0 + robot_pose[2]
+        theta_avg = (theta_left + theta_right) / 2.0 + robot_pose[2]  # doesn't need to be wrapped to [-pi, pi)
 
         flag_position = np.zeros(2)
         flag_position[0] = robot_pose[0] + flag_object.distance*np.cos(theta_avg)
@@ -76,16 +72,14 @@ class FlagLocalizer(object):
         return wrapped_angle
 
     def oracle_correction(self, msg):
-        map_changed = False
+        moved_flag = False
         flag_id = int(msg.theta)  # used the theta slot of Pose2D for the flag id
         flag_pos = np.array([msg.x, msg.y])
-
         if flag_id in self.detected_flags.keys():
-            map_changed = True
-            
+            moved_flag = True
         self.detected_flags[flag_id] = flag_pos
         self.flag_counts[flag_id] = 1
-        return map_changed
+        return moved_flag
 
 
 

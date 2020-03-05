@@ -9,7 +9,7 @@ from geometry_msgs.msg import Pose2D
 from flag_localizer import FlagLocalizer
 
 
-class FlagLocalizerNode(object, FlagLocalizer):
+class FlagLocalizerNode(FlagLocalizer):
     def __init__(self):
         super(FlagLocalizerNode, self).__init__()
 
@@ -26,6 +26,7 @@ class FlagLocalizerNode(object, FlagLocalizer):
         rospy.Subscriber("oracle/flag_correction", Pose2D, self.oracle_correction_callback)
         rospy.Subscriber("flagmap/query", Int64, self.flag_query_callback)
         rospy.Subscriber("state_correction", String, self.game_started_callback)
+        rospy.Subscriber("opponent_location", Pose2D, self.opponent_pose_callback)
 
     def object_detected_callback(self, msg):
         # Get robot's pose
@@ -50,12 +51,12 @@ class FlagLocalizerNode(object, FlagLocalizer):
             rospy.loginfo("Updated the flag map")
 
     def oracle_correction_callback(self, msg):
-        map_changed = self.oracle_correction(msg)
-        if map_changed:
-            self.publish_map()
+        moved_flag = self.oracle_correction(msg)
+        if moved_flag:
             rospy.loginfo("Oracle moved a flag")
         else:
             rospy.loginfo("Oracle placed a new flag on the map")
+        self.publish_map()
 
     def flag_query_callback(self, msg):
         flag_id = msg
@@ -69,6 +70,9 @@ class FlagLocalizerNode(object, FlagLocalizer):
     def game_started_callback(self, msg):
         if msg == "go_to_opponent":
             self.game_started = True
+
+    def opponent_pose_callback(self, msg):
+        self.opponent_pose = np.array([msg.x, msg.y, msg.theta])
 
     def publish_map(self):
         flag_map = FlagMap()

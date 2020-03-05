@@ -22,3 +22,10 @@ class FlagMap(object):
     def __init__(self, objects, coordinates):
         self.objects = objects  # string[]
         self.coordinates = coordinates  # geometry_msgs/Pose2D[]
+
+
+class Pose2D(object):
+    def __init__(self, x=0.0, y=0.0, theta=0.0):
+        self.x = x
+        self.y = y
+        self.theta = theta
