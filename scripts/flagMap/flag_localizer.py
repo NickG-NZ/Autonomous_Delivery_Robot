@@ -8,8 +8,8 @@ from std_msgs.msg import Int64
 from geometry_msgs.msg import Pose2D
 
 
-
 class FlagLocalizer():
+    """Parent class which FlagLocalizerNode inherits from"""
     def __init__(self):
 
         self.detected_flags = {}  # {(int)id: np.array([x, y])}
@@ -19,7 +19,7 @@ class FlagLocalizer():
         self.mapping_done = False
 
     def object_detected(self, msg, robot_pose):
-        map_changed = false
+        map_changed = False
         flags_detected = msg.ob_msgs  # list of DetectedObject messages
 
         for flag in flags_detected:
@@ -27,7 +27,7 @@ class FlagLocalizer():
             if flag.id in self.oracle_flags.keys() and not self.mapping_done:
                 continue
 
-            flag_pos = calc_flag_position(flag, robot_pose)
+            flag_pos = self.calc_flag_position(flag, robot_pose)
             if flag.id in self.detected_flags.keys():
 
                 # If new location is far from old location, move flag
@@ -37,24 +37,24 @@ class FlagLocalizer():
 
                 # Else average the position with the old position
                 else:
-                    self.detected_flags[flag.id] = (self.detected_flags[flag.id] * \
+                    self.detected_flags[flag.id] = (self.detected_flags[flag.id] *
                         self.flag_counts[flag.id] + flag_pos) / (self.flag_counts[flag.id] + 1)
                     self.flag_counts[flag.id] += 1
 
             # Else add flag to detected flags
             else:
-                self.detected_flags
-
+                self.detected_flags[flag.id] = flag_pos
+                self.flag_counts[flag.id] = 1
+            map_changed = True
 
         if map_changed:
-            return true
-        return false
-
+            return True
+        return False
 
     def calc_flag_position(flag_object, robot_pose):
         # Angles from detector_mobile_net are in range (0, 2pi]
-        theta_left = wrap2pi(flag_object.theta_left)
-        theta_right = wrap2pi(fla_object.theta_right)
+        theta_left = self.wrap2pi(flag_object.theta_left)
+        theta_right = self.wrap2pi(fla_object.theta_right)
 
         if theta_left > 0.0 > theta_right:
             theta_avg = theta_left + theta_right + robot_pose[2]
@@ -72,39 +72,35 @@ class FlagLocalizer():
         return wrapped_angle
 
     def oracle_correction(self, msg):
-        map_changed = false
-        
-        # Correction code here
+        map_changed = False
+        flag_id = int(msg.theta)  # used the theta slot of Pose2D for the flag id
+        flag_pos = np.array([msg.x, msg.y])
+
+        if flag_id in self.detected_flags.keys():
+            map_changed = True
+            
+        self.detected_flags[flag_id] = flag_pos
+        self.flag_counts[flag_id] = 1
+        return map_changed
 
 
-        if map_changed:
-            return true
-        return false
-
-
-    def flag_query(self, msg):
-        pass
-
-
-
-class FlagLocalizerNode():
+class FlagLocalizerNode(FlagLocalizer):
     def __init__(self):
+        super(FlagLocalizerNode, self).__init__()
         rospy.init_node("flag_localizer", anonymous=True)
 
         # Modularize functionality
-        self.flag_localizer = FlagLocalizer()
         self.tfListener = tf.TransformListener()
 
         # Publishers
-        rospy.Publisher("flagmap/response", Pose2D, queue_size=10)
-        rospy.Publisher("flag_visualization", FlagMap, queue_size=10)
+        self.query_response_pub = rospy.Publisher("flagmap/response", Pose2D, queue_size=10)
+        self.flag_map_pub = rospy.Publisher("flag_map", FlagMap, queue_size=10)
 
         # Subscribers
         rospy.Subscriber("detector/objects", DetectedObjectList, self.object_detected_callback)
-        rospy.Subscriber("oracle/flag_correction", DetectedObjectList, self.oracle_correction_callback)
+        rospy.Subscriber("oracle/flag_correction", Pose2D, self.oracle_correction_callback)
         rospy.Subscriber("flagmap/query", Int64, self.flag_query_callback)
         rospy.Subscriber("state_correction", String, self.mapping_done_callback)
-
 
     def object_detected_callback(self, msg):
         # Get robot's pose
@@ -118,37 +114,47 @@ class FlagLocalizerNode():
             rospy.loginfo("Couldn't place detected flag because robot pose is unknown")
             print e
             return
-
         # Place flag on map (or update it's location)
-        map_changed = self.flag_localizer.object_detected(msg, robot_pose)
+        map_changed = self.object_detected(msg, robot_pose)
         if map_changed:
             self.publish_map()
             rospy.loginfo("Updated the flag map")
 
-
     def oracle_correction_callback(self, msg):
-        map_changed = self.flag_localizer.oracle_correction(msg)
+        map_changed = self.oracle_correction(msg)
         if map_changed:
             self.publish_map()
+            rospy.loginfo("Oracle moved a flag")
+        else:
+            rospy.loginfo("Oracle placed a new flag on the map")
 
     def flag_query_callback(self, msg):
-        self.flag_localizer.flag_query(msg)
-
+        flag_id = msg
+        pose = Pose2D()
+        pose.x = self.detected_flags[flag_id][0]
+        pose.y = self.detected_flags[flag_id][1]
+        pose.theta = float(flag_id)
+        self.query_response_pub.publish(pose)
+        rospy.loginfo("Responded to query about flag: %d", flag_id)
+        
     def mapping_done_callback(self, msg):
-        # If message is true, change the mapping_done_parameter
         if msg == "go_to_opponent":
-            self.flag_localizer.mapping_done = True
+            self.mapping_done = True
 
     def publish_map(self):
-        pass
+        flag_map = FlagMap()
+        for flag in self.detected_flags:
+            pose = Pose2D()
+            pose.x = self.detected_flags[flag][0]
+            pose.y = self.detected_flags[flag][1]
+            pose.theta = 0
+            flag_map.objects.append(str(flag))
+            flag_map.coordinates.append(pose)
+        self.flag_map_pub.publish(flag_map)
 
     def run(self):
         if not rospy.is_shutdown():
             rospy.Spin()
-
-
-
-
 
 
 if __name__ == '__main__':
