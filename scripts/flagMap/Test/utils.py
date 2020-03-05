@@ -13,9 +13,9 @@ class DetectedObject(object):
 
 
 class DetectedObjectList(object):
-    def __init__(self, objects, ob_msgs):
-        self.objects = objects  # string[]
-        self.ob_msgs = ob_msgs  # DetectedObject[]
+    def __init__(self):
+        self.objects = []  # string[]
+        self.ob_msgs = []  # DetectedObject[]
 
 
 class FlagMap(object):

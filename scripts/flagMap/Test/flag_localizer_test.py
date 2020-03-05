@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from numpy import pi, cos, sin
 from flag_localizer import FlagLocalizer
-from utils import DetectedObject, Pose2D
+from utils import DetectedObject, Pose2D, DetectedObjectList
 
 
 class FlagLocalizerTest(unittest.TestCase):
@@ -25,7 +25,7 @@ class FlagLocalizerTest(unittest.TestCase):
 		# Set: Robot(x,y,th), Flag(d,th_l,th_r)
 		# ---------------------------------
 		# R(0,0,0), F(0,0,0)
-		robot_pose = [0.0, 0.0, 0.0]
+		robot_pose = np.array([0.0, 0.0, 0.0])
 		flag = DetectedObject(distance=0.0, thetaleft=0.0, thetaright=0.0)
 		flg_pos = flg.calc_flag_position(flag, robot_pose)
 		self.assertAlmostEqual(flg_pos[0], 0.0, places=6)
@@ -69,7 +69,7 @@ class FlagLocalizerTest(unittest.TestCase):
 		# =========================================================================
 		# R(2.5,1,-3*pi/4), F(0.5,-pi/6,-3pi/6)
 		# Robot in 1st quadrant, robot angle in 3rd quadrant, flag in 2nd quadrant
-		robot_pose = (2.5, 1.0, -3*pi/4)
+		robot_pose = np.array([2.5, 1.0, -3*pi/4])
 		flag = DetectedObject(distance=0.5, thetaleft=-pi/6, thetaright=-pi/2)
 		flg_pos = flg.calc_flag_position(flag, robot_pose)
 		self.assertAlmostEqual(flg_pos[0], 2.0170370868554657, places=6)
@@ -77,7 +77,7 @@ class FlagLocalizerTest(unittest.TestCase):
 
 		# R(-1,0,3*pi/4), F(1.2,1.0,0.2)
 		# Robot on border of 2nd and 3rd quadrant, angle in 2nd, flag in 2nd
-		robot_pose = [-1.0, 0.0, 3*pi/4]
+		robot_pose = np.array([-1.0, 0.0, 3*pi/4])
 		flag = DetectedObject(distance=1.2, thetaleft=1.0, thetaright=0.2)
 		flg_pos = flg.calc_flag_position(flag, robot_pose)
 		self.assertAlmostEqual(flg_pos[0], -2.1794355183291723, places=6)
@@ -85,7 +85,7 @@ class FlagLocalizerTest(unittest.TestCase):
 
 		# R(1,-1,-pi/4), F(0.3,3pi/8,-pi/8)
 		# Robot in 4th quadrant, angle in 4th quadrant, flag in 1st quadrant (theta either side of x)
-		robot_pose = [1.0, -1.0, -pi/4]
+		robot_pose = np.array([1.0, -1.0, -pi/4])
 		flag = DetectedObject(distance=0.3, thetaleft=3*pi/8, thetaright=-pi/8)
 		flg_pos = flg.calc_flag_position(flag, robot_pose)
 		self.assertAlmostEqual(flg_pos[0], 1.277163859753386, places=6)
@@ -109,6 +109,7 @@ class FlagLocalizerTest(unittest.TestCase):
 		self.assertTrue(moved_flag)
 		self.assertEqual(flg.detected_flags[ID][0], msg.x)
 		self.assertEqual(flg.detected_flags[ID][1], msg.y)
+		self.assertEqual(flg.detected_flags[ID].shape, (2,))
 		self.assertEqual(len(flg.detected_flags.keys()), 9)
 		self.assertEqual(flg.flag_counts[ID], 1)
 
@@ -119,6 +120,27 @@ class FlagLocalizerTest(unittest.TestCase):
 		self.assertFalse(moved_flag)
 		self.assertEqual(flg.detected_flags[ID][0], msg.x)
 		self.assertEqual(flg.detected_flags[ID][1], msg.y)
-		self.assertEqual(len(flg.detected_flags.keys()), 9)
+		self.assertEqual(len(flg.detected_flags.keys()), 10)
 		self.assertEqual(flg.flag_counts[ID], 1)
+
+	def test_object_detected_before_game(self):
+		flg = FlagLocalizer()
+		robot_pose = np.array([0.0, 0.0, 0.0])
+
+		# Single flag detected
+		msg = DetectedObjectList()
+		ID = 3
+		strID = str(ID).zfill(3)
+		msg.objects = [strID]
+		msg.ob_msgs = [DetectedObject(f_id=ID, name=strID, distance=1, thetaleft=pi/2, thetaright=pi/4)]
+
+		# Check if moves flags placed by oracle:
+		# 1) Before game starts
+
+		# 2) After game starts
+
+	def test_object_detected_game(self):
+
+
+		# Check if identifies opponent/ our flag
 

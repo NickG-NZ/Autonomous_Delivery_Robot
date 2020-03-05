@@ -37,15 +37,16 @@ class FlagLocalizerNode(FlagLocalizer):
             robot_pose[1] = trans.y
             robot_pose[2] = tf.transformations.euler_from_quaternion(rot)[2]
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
-            rospy.loginfo("Couldn't place detected flag because robot pose is unknown")
+            rospy.loginfo("Couldn't place detected flag(s) because robot pose is unknown")
             print e
             return
+
         # Place flags on map (or update their locations)
         map_changed, opponent_detected = self.object_detected(msg, robot_pose)
 
         if opponent_detected:
             self.our_flag_pub.publish(self.our_flag)
-            rospy.loginfo("We know our flag")
+            rospy.loginfo("Our flag is: %d", self.our_flag)
         if map_changed:
             self.publish_map()
             rospy.loginfo("Updated the flag map")
