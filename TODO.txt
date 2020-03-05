@@ -8,3 +8,16 @@ List of things to do
 	-> Can load up a blank rviz, turn on the topics we want, save the configuration
 		then overwrite project_rviz.rviz with this new configuration
 
+
+- Implement FlagVisualizer node (display_flag_locations.py)
+
+- Implement FlagLocalizer node (flag_localizer.py)
+
+- Write new launch file
+
+- Make sure "state_change" topic is correct
+
+- Check camera parameters are correct (detector_mobilenet.py)
+	project_pixel_to_ray takes in u,v in pixel counts
+	self.cx, etc also need to be in pixel counts
+
