@@ -21,3 +21,5 @@ List of things to do
 - Pull update to detector (and possibly any others) to Cosmo
 
 - Test the robot identifying our flag by spoofing the opponent location
+
+- Write functionality to save map

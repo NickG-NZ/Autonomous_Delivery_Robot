@@ -134,13 +134,24 @@ class FlagLocalizerTest(unittest.TestCase):
 		msg.objects = [strID]
 		msg.ob_msgs = [DetectedObject(f_id=ID, name=strID, distance=1, thetaleft=pi/2, thetaright=pi/4)]
 
-		# Check if moves flags placed by oracle:
-		# 1) Before game starts
+		# Check if adds new flag
 
-		# 2) After game starts
+		# Check if moves flag to new location
 
-	def test_object_detected_game(self):
+		# Check if averages flag location
 
+		# Check if moves flags placed by oracle
+
+		# Check if ignore oppon
+
+
+
+
+	def test_object_detected_during_game(self):
 
 		# Check if identifies opponent/ our flag
 
+	def test_multiple_objects_detected_before_game(self):
+
+
+	def test_multiple_objects_detected_during_game(self):

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import numpy as np
+import json
 
 
 class FlagLocalizer(object):
@@ -12,7 +13,8 @@ class FlagLocalizer(object):
         self.game_started = False
         self.opponent_pose = None  # numpy array
         self.flag_is_opponent_tol = 0.01
-        self.our_flag = None  # int
+        self.opponent_flag = None  # int
+        self.map_saves_count = 0
 
     def object_detected(self, msg, robot_pose):
         map_changed = False
@@ -27,10 +29,10 @@ class FlagLocalizer(object):
             flag_pos = self.calc_flag_position(flag, robot_pose)
 
             # Check if the flag is the opponent
-            if self.game_started and self.opponent_pose and \
+            if not self.opponent_flag and self.game_started and self.opponent_pose and \
                     (np.linalg.norm(self.opponent_pose[:2] - flag_pos) < self.flag_is_opponent_tol):
                 opponent_detected = True
-                self.our_flag = flag.id
+                self.opponent_flag = flag.id
 
             elif flag.id in self.detected_flags.keys():
                 # If new location is far from old location, move flag
@@ -80,6 +82,19 @@ class FlagLocalizer(object):
         self.detected_flags[flag_id] = flag_pos
         self.flag_counts[flag_id] = 1
         return moved_flag
+
+    def save_food_map(self):
+        self.maybe_make_dir('FoodMaps')
+        filename = 'FoodMaps/foodMap_{}.json'.format(self.map_saves_count)
+        with open(filename, 'w') as fp:
+            json.dump(self.detected_flags, fp, indent=4)
+        self.map_saves_count += 1
+
+    @staticmethod
+    def maybe_make_dir(dir_name):
+        
+
+
 
 
 

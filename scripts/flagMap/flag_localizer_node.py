@@ -19,7 +19,7 @@ class FlagLocalizerNode(FlagLocalizer):
         # Publishers
         self.query_response_pub = rospy.Publisher("flagmap/response", Pose2D, queue_size=10)
         self.flag_map_pub = rospy.Publisher("flag_map", FlagMap, queue_size=10)
-        self.our_flag_pub = rospy.Publisher("our_flag", Int64, queue_size=10)
+        self.opponent_flag_pub = rospy.Publisher("opponent_flag", Int64, queue_size=10)
 
         # Subscribers
         rospy.Subscriber("detector/objects", DetectedObjectList, self.object_detected_callback)
@@ -45,8 +45,8 @@ class FlagLocalizerNode(FlagLocalizer):
         map_changed, opponent_detected = self.object_detected(msg, robot_pose)
 
         if opponent_detected:
-            self.our_flag_pub.publish(self.our_flag)
-            rospy.loginfo("Our flag is: %d", self.our_flag)
+            self.opponent_flag_pub.publish(self.opponent_flag)
+            rospy.loginfo("Opponent flag is: %d", self.opponent_flag)
         if map_changed:
             self.publish_map()
             rospy.loginfo("Updated the flag map")
@@ -71,6 +71,7 @@ class FlagLocalizerNode(FlagLocalizer):
     def game_started_callback(self, msg):
         if msg == "go_to_opponent":
             self.game_started = True
+            self.save_food_map()
 
     def opponent_pose_callback(self, msg):
         self.opponent_pose = np.array([msg.x, msg.y, msg.theta])
