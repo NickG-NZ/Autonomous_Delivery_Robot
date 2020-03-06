@@ -342,7 +342,7 @@ class FlagLocalizerTest(unittest.TestCase):
 		msg.objects = [strID]
 		msg.ob_msgs = [DetectedObject(id=ID, name=strID, distance=1.0, thetaleft=3*pi / 4.0, thetaright=pi / 4.0)]
 		flg.opponent_pose = np.array([0, 1 + flg.flag_is_opponent_tol*0.95, 2])
-		flg.detected_flags[5] = np.array([10, 5])
+		flg.detected_flags[ID] = np.array([10, 5])
 
 		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
 		self.assertFalse(map_changed)
@@ -351,19 +351,91 @@ class FlagLocalizerTest(unittest.TestCase):
 		self.assertEqual(flg.opponent_flag, ID)
 		assert np.allclose(flg.detected_flags[ID], np.array([10, 5])), "Detected flags shouldn't have changed"
 
-		# Check opponent flag not overwritten if already set (and handles opponent flag ID = 0)
+		# Check opponent flag not overwritten if already set (and handles opponent flag ID == 0)
 		# ==============================================================
-		
+		flg = FlagLocalizer()
+		flg.game_started = True
 
+		robot_pose = ([0, 0, 0])
+		ID = 0
+		strID = str(ID).zfill(3)
+		msg = DetectedObjectList()
+		msg.objects = [strID]
+		msg.ob_msgs = [DetectedObject(id=ID, name=strID, distance=1.0, thetaleft=pi / 4.0, thetaright=-pi / 4.0)]
+		flg.opponent_pose = np.array([1 + flg.flag_is_opponent_tol*0.95, 0.0, 2])
+		flg.opponent_flag = ID
+
+		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+		self.assertFalse(map_changed)
+		self.assertFalse(opponent_detected)
+		self.assertEqual(len(flg.detected_flags.keys()), 0)
+		self.assertEqual(flg.opponent_flag, ID)
 
 	def test_object_detected_C(self):
 		# Multiple objects
-		# =============================
-		# Test multiple objects before game starts
-		pass
-		# Test multiple objects after game starts
-		# ========================================
+		# ======================================
+		# Test multiple objects before game starts (opponent pose known)
+		flg = FlagLocalizer()
+		robot_pose = ([0, 0, 0])
+		flg.opponent_pose = np.array([0.1, 0.3, 2.4])
+		IDs = [3, 97, 15, 0, 6]
+		msg = DetectedObjectList([], [])
+		dists = np.linspace(0.1, 0.5, 5)
+		for i, ID in enumerate(IDs):
+			strID = str(ID).zfill(3)
+			msg.objects.append(strID)
+			msg.ob_msgs.append(DetectedObject(id=ID, name=strID, distance=dists[i], thetaleft=0.2, thetaright=-0.2))
+			map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+			self.assertTrue(map_changed)
+			self.assertFalse(opponent_detected)
 
+		self.assertTrue(len(flg.detected_flags), 5)
+		self.assertEqual(flg.opponent_flag, None)
+		for i, ID in enumerate(IDs):
+			assert np.allclose(flg.detected_flags[ID], np.array([dists[i], 0])), "Flags placed incorrectly"
 
-		# Test multiple objects including the opponent
-		# ========================================
+		# Test multiple objects after game starts (Opponent pose and flag known)
+		# ======================================================================
+		flg = FlagLocalizer()
+		flg.game_started = True
+		robot_pose = ([0, 0, 0])
+		flg.opponent_pose = np.array([0.1, 0.3, 2.4])
+		flg.opponent_flag = 97
+		IDs = [3, 97, 15, 0, 6]
+		msg = DetectedObjectList([], [])
+		dists = np.linspace(0.1, 0.5, 5)
+		for i, ID in enumerate(IDs):
+			strID = str(ID).zfill(3)
+			msg.objects.append(strID)
+			msg.ob_msgs.append(DetectedObject(id=ID, name=strID, distance=dists[i], thetaleft=0.2, thetaright=-0.2))
+		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+		self.assertTrue(map_changed)
+		self.assertFalse(opponent_detected)
+
+		self.assertTrue(len(flg.detected_flags), 5)
+		self.assertEqual(flg.opponent_flag, 97)
+		for i, ID in enumerate(IDs):
+			assert np.allclose(flg.detected_flags[ID], np.array([dists[i], 0])), "Flags placed incorrectly"
+
+		# Test multiple objects (including placing the opponent)
+		# ==================================================
+		flg = FlagLocalizer()
+		flg.game_started = True
+		robot_pose = ([0, 0, 0])
+		flg.opponent_pose = np.array([0.2, 0, -2.4])
+		IDs = [3, 97, 15, 0, 6]
+		msg = DetectedObjectList([], [])
+		dists = np.linspace(0.1, 0.5, 5)
+		for i, ID in enumerate(IDs):
+			strID = str(ID).zfill(3)
+			msg.objects.append(strID)
+			msg.ob_msgs.append(DetectedObject(id=ID, name=strID, distance=dists[i], thetaleft=0.2, thetaright=-0.2))
+		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+		self.assertTrue(map_changed)
+		self.assertTrue(opponent_detected)
+		self.assertTrue(len(flg.detected_flags), 4)
+		self.assertEqual(flg.opponent_flag, 97)
+		for i, ID in enumerate(IDs):
+			if ID == 97:
+				continue
+			assert np.allclose(flg.detected_flags[ID], np.array([dists[i], 0])), "Flags placed incorrectly"
