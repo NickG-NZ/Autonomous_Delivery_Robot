@@ -1,16 +1,17 @@
 #!/usr/bin/env python
-
-from aslturtlebot.msg import FlagMap
+import rospy
+from asl_turtlebot.msg import FlagMap
 from visualization_msgs.msg import Marker
 
-class FlagVisualizerNode():
+
+class FlagVisualizerNode(object):
     def __init__(self):
         rospy.init_node("flag_visualizer", anonnymous=True)
 
         # Publishers
         self.marker_pub = rospy.Publisher("flag_visualization", Marker, queue_size=10)
 
-        #Subscribers
+        # Subscribers
         rospy.Subscriber("flag_map", FlagMap, self.publish_map_callback)
 
     def publish_map_callback(self, msg):

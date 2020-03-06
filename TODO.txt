@@ -23,3 +23,9 @@ List of things to do
 - Test the robot identifying our flag by spoofing the opponent location
 
 - Write functionality to save map
+
+- Make sure opponent_pose is updated regularly enough for identifying opponent
+
+- Check if we want to be able to change our guess of the opponents flag (eg. store the norm(diff) and overwrite flag if
+	a different flag returns a lower norm diff later on etc.). Could just overwrite everytime a flag and the opponent are close.
+

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import numpy as np
-import json
+import cPickle as pickle
+import os
 
 
 class FlagLocalizer(object):
@@ -9,11 +10,11 @@ class FlagLocalizer(object):
         self.detected_flags = {}  # {(int)id: np.array([x, y])}
         self.flag_counts = {}  # {(int) id: int num_times_seen}
         self.oracle_flags = {}
-        self.flag_move_threshold = 0.05
+        self.flag_move_threshold = 0.01
         self.game_started = False
         self.opponent_pose = None  # numpy array
-        self.flag_is_opponent_tol = 0.01
         self.opponent_flag = None  # int
+        self.flag_is_opponent_tol = 0.01
         self.map_saves_count = 0
 
     def object_detected(self, msg, robot_pose):
@@ -29,32 +30,38 @@ class FlagLocalizer(object):
             flag_pos = self.calc_flag_position(flag, robot_pose)
 
             # Check if the flag is the opponent
-            if not self.opponent_flag and self.game_started and self.opponent_pose and \
+            if self.game_started and self.opponent_pose and \
                     (np.linalg.norm(self.opponent_pose[:2] - flag_pos) < self.flag_is_opponent_tol):
-                opponent_detected = True
-                self.opponent_flag = flag.id
-
-            elif flag.id in self.detected_flags.keys():
-                # If new location is far from old location, move flag
-                if np.linalg.norm(flag_pos - self.detected_flags[flag.id]) > self.flag_move_threshold:
-                    self.detected_flags[flag.id] = flag_pos
-                    self.flag_counts[flag.id] = 1
-                    map_changed = True
-
-                # Else average the position with the old position
+                if self.opponent_flag:
+                    # We already know the opponent's flag so do nothing
+                    # TODO: Consider making this more robust (keeping a best guess at opponents flag)
+                    continue
                 else:
-                    self.detected_flags[flag.id] = (self.detected_flags[flag.id] *
-                                                    self.flag_counts[flag.id] + flag_pos) / (self.flag_counts[flag.id] + 1)
-                    self.flag_counts[flag.id] += 1
-                    map_changed = True
-
-            # If never seen before, add the flag to detected flags
+                    # We have identified the opponent, save their flag
+                    opponent_detected = True
+                    self.opponent_flag = flag.id
             else:
-                self.detected_flags[flag.id] = flag_pos
-                self.flag_counts[flag.id] = 1
+                # Flag is not the opponent, update detected_flags
+                self.update_detected_flags(flag, flag_pos)
                 map_changed = True
 
         return map_changed, opponent_detected
+
+    def update_detected_flags(self, flag, flag_pos):
+        if flag.id in self.detected_flags.keys():
+            # If new location is far from old location, move flag
+            if np.linalg.norm(flag_pos - self.detected_flags[flag.id]) > self.flag_move_threshold:
+                self.detected_flags[flag.id] = flag_pos
+                self.flag_counts[flag.id] = 1
+            else:
+                # Average the position with the old position
+                self.detected_flags[flag.id] = (self.detected_flags[flag.id] *
+                                                self.flag_counts[flag.id] + flag_pos) / (self.flag_counts[flag.id] + 1)
+                self.flag_counts[flag.id] += 1
+        else:
+            # Flag never seen before, add the flag to detected flags
+            self.detected_flags[flag.id] = flag_pos
+            self.flag_counts[flag.id] = 1
 
     def calc_flag_position(self, flag_object, robot_pose):
         # Angles from detector_mobile_net are in range (0, 2pi]
@@ -80,19 +87,27 @@ class FlagLocalizer(object):
         if flag_id in self.detected_flags.keys():
             moved_flag = True
         self.detected_flags[flag_id] = flag_pos
+        self.oracle_flags[flag_id] = flag_pos
         self.flag_counts[flag_id] = 1
         return moved_flag
 
-    def save_food_map(self):
-        self.maybe_make_dir('FoodMaps')
-        filename = 'FoodMaps/foodMap_{}.json'.format(self.map_saves_count)
-        with open(filename, 'w') as fp:
-            json.dump(self.detected_flags, fp, indent=4)
+    def save_flag_map(self):
+        # Called when the game starts (after mapping has finished)
+        try:
+            os.makedirs('FlagMaps')
+        except OSError:
+            pass
         self.map_saves_count += 1
+        filename = 'FlagMaps/flagMap_{}.p'.format(self.map_saves_count)
+        with open(filename, 'wb') as fp:
+            pickle.dump(self.detected_flags, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
-    @staticmethod
-    def maybe_make_dir(dir_name):
-        
+    def load_flag_map(self):
+        # Not automatically called, can be used if needed
+        filename = 'FlagMaps/flagMap_{}.p'.format(self.map_saves_count)
+        with open(filename, 'rb') as fp:
+            self.detected_flags = pickle.load(fp)
+
 
 
 

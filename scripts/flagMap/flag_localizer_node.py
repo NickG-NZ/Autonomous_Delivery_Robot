@@ -71,7 +71,7 @@ class FlagLocalizerNode(FlagLocalizer):
     def game_started_callback(self, msg):
         if msg == "go_to_opponent":
             self.game_started = True
-            self.save_food_map()
+            self.save_flag_map()
 
     def opponent_pose_callback(self, msg):
         self.opponent_pose = np.array([msg.x, msg.y, msg.theta])
@@ -83,7 +83,7 @@ class FlagLocalizerNode(FlagLocalizer):
             pose.x = self.detected_flags[flag][0]
             pose.y = self.detected_flags[flag][1]
             pose.theta = 0
-            flag_map.objects.append(str(flag))
+            flag_map.objects.append(str(flag).zfill(3))
             flag_map.coordinates.append(pose)
         self.flag_map_pub.publish(flag_map)
 

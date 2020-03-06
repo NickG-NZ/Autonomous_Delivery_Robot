@@ -2,8 +2,8 @@
 
 
 class DetectedObject(object):
-    def __init__(self, f_id=0, name="000", distance=0, thetaleft=0, thetaright=0, corners=[]):
-        self.f_id = f_id  # int
+    def __init__(self, id=0, name="000", distance=0, thetaleft=0, thetaright=0, corners=None):
+        self.id = id  # int
         self.name = name  # string
         self.confidence = 0  # float
         self.distance = distance  # float
@@ -13,13 +13,13 @@ class DetectedObject(object):
 
 
 class DetectedObjectList(object):
-    def __init__(self):
-        self.objects = []  # string[]
-        self.ob_msgs = []  # DetectedObject[]
+    def __init__(self, objects=None, ob_msgs=None):
+        self.objects = objects  # string[]
+        self.ob_msgs = ob_msgs  # DetectedObject[]
 
 
 class FlagMap(object):
-    def __init__(self, objects, coordinates):
+    def __init__(self, objects=None, coordinates=None):
         self.objects = objects  # string[]
         self.coordinates = coordinates  # geometry_msgs/Pose2D[]
 
