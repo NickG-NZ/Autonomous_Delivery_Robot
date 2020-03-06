@@ -29,3 +29,6 @@ List of things to do
 - Check if we want to be able to change our guess of the opponents flag (eg. store the norm(diff) and overwrite flag if
 	a different flag returns a lower norm diff later on etc.). Could just overwrite everytime a flag and the opponent are close.
 
+
+- After the game starts, the oracle can still move flags, but the oracel flags dictionary becomes redundant 
+	(If a flag which is in the oracle dict is moved, the oracle dict isn't updated accordingly)

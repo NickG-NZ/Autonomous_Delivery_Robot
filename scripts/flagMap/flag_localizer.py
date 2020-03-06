@@ -10,11 +10,11 @@ class FlagLocalizer(object):
         self.detected_flags = {}  # {(int)id: np.array([x, y])}
         self.flag_counts = {}  # {(int) id: int num_times_seen}
         self.oracle_flags = {}
-        self.flag_move_threshold = 0.01
+        self.flag_move_threshold = 0.08
         self.game_started = False
         self.opponent_pose = None  # numpy array
         self.opponent_flag = None  # int
-        self.flag_is_opponent_tol = 0.01
+        self.flag_is_opponent_tol = 0.08
         self.map_saves_count = 0
 
     def object_detected(self, msg, robot_pose):
@@ -30,11 +30,11 @@ class FlagLocalizer(object):
             flag_pos = self.calc_flag_position(flag, robot_pose)
 
             # Check if the flag is the opponent
-            if self.game_started and self.opponent_pose and \
+            if self.game_started and self.opponent_pose is not None and \
                     (np.linalg.norm(self.opponent_pose[:2] - flag_pos) < self.flag_is_opponent_tol):
-                if self.opponent_flag:
+                if self.opponent_flag is not None:
                     # We already know the opponent's flag so do nothing
-                    # TODO: Consider making this more robust (keeping a best guess at opponents flag)
+                    # TODO: Consider making this more robust (keep updating best guess of opponent's flag)
                     continue
                 else:
                     # We have identified the opponent, save their flag
@@ -44,7 +44,6 @@ class FlagLocalizer(object):
                 # Flag is not the opponent, update detected_flags
                 self.update_detected_flags(flag, flag_pos)
                 map_changed = True
-
         return map_changed, opponent_detected
 
     def update_detected_flags(self, flag, flag_pos):

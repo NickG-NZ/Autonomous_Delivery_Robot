@@ -126,14 +126,13 @@ class FlagLocalizerTest(unittest.TestCase):
 
 	def test_update_detected_flags(self):
 		flg = FlagLocalizer()
-		robot_pose = np.array([0.0, 0.0, 0.0])
 
-		# Check if adds new flag
+		# Check adding new flag
 		# ====================================
 		# 1) Empty detected_flags dict
 		ID = 3
 		flag = DetectedObject(id=ID)
-		flag_pos = np.array([2, 0])
+		flag_pos = np.array([3, -2])
 		flg.update_detected_flags(flag, flag_pos)
 		self.assertTrue(ID in flg.detected_flags)
 		assert np.array_equal(flg.detected_flags[ID], flag_pos), "Incorrectly added new flag to empty dict"
@@ -152,9 +151,9 @@ class FlagLocalizerTest(unittest.TestCase):
 		assert np.array_equal(flg.detected_flags[ID], flag_pos), "Incorrectly added new flag to dict with other flags"
 		self.assertEqual(flg.flag_counts[ID], 1)
 
-		# Check if moves flag to new location (if far from previous location)
+		# Check moving flag to new location (if position change greater than threshold)
 		# ===================================================================
-		flag_pos = 1.1*flg.flag_move_threshold*flag_pos  # Move it slightly more than allowable tolerance
+		flag_pos = flag_pos + 1.1*flg.flag_move_threshold   # Move it slightly more than allowable tolerance
 		flg.flag_counts[ID] = 10  # This should be reset to 1
 		flg.update_detected_flags(flag, flag_pos)
 		self.assertTrue(ID in flg.detected_flags)
@@ -163,34 +162,208 @@ class FlagLocalizerTest(unittest.TestCase):
 
 		ID = 3
 		flag = DetectedObject(id=ID)
-		flag_pos = np.array([3, -2])
+		flag_pos = np.array([2, 0])
+		flg.update_detected_flags(flag, flag_pos)
+		self.assertTrue(ID in flg.detected_flags)
+		assert np.array_equal(flg.detected_flags[ID], flag_pos)
+		self.assertEqual(flg.flag_counts[ID], 1)
 
-		# Check if averages flag location (if within threshold)
+		# Check averaging flag location (if position change within threshold)
+		# ==================================================================
+		# Average of two positions
+		new_pos = flag_pos + flg.flag_move_threshold*0.5  # Move it slightly less than tolerance
+		pos_avg = (flag_pos + new_pos) / 2.0
+		flg.update_detected_flags(flag, new_pos)
+		self.assertTrue(ID in flg.detected_flags)
+		assert np.allclose(flg.detected_flags[ID], pos_avg)
+		self.assertEqual(flg.flag_counts[ID], 2)
+
+		# Running average
+		ID = 5
+		flag = DetectedObject(id=ID)
+		flag_pos = np.array([0, 4])
+		flg.detected_flags[ID] = flag_pos
+		flg.flag_counts[ID] = 4
+		new_pos = flag_pos + np.array([0, 1])
+		pos_avg = (4*flag_pos + new_pos)/5
+		flg.update_detected_flags(flag, flag_pos)
+		self.assertTrue(ID in flg.detected_flags)
+		assert np.array_equal(flg.detected_flags[ID], pos_avg)
+		self.assertEqual(flg.flag_counts[ID], 5)
+
+	def test_object_detected_A(self):
+		# Before Game Starts
+		# =======================
+		flg = FlagLocalizer()
+
+		# Check flags placed by oracle aren't moved before game starts
+		# =======================================================
+		robot_pose = np.array([0.0, 0.0, 0.0])
+		ID = 2
+		strID = str(ID).zfill(3)
+		msg = DetectedObjectList()
+		msg.objects = [strID]
+		msg.ob_msgs = [DetectedObject(id=ID, name=strID, distance=2.0, thetaleft=pi / 2.0, thetaright=-pi / 2.0)]
+		flag_pos_old = np.array([1, 0])
+		flg.detected_flags[ID] = flag_pos_old
+		flg.oracle_flags[ID] = flag_pos_old
+		flg.flag_counts[ID] = 1
+
+		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+		self.assertFalse(map_changed)
+		self.assertFalse(opponent_detected)
+		self.assertEqual(flg.opponent_flag, None)
+		assert np.array_equal(flg.detected_flags[ID], flag_pos_old), "Shouldn't have moved a flag placed by oracle"
+		assert np.array_equal(flg.oracle_flags[ID], flag_pos_old), "Shouldn't have changed the oracle flags"
+
+		# Check non-oracle flags are moved correctly before game starts
+		# =============================================================
+		# Move flag to new location
+		robot_pose = np.array([1.0, 0.0, 0.0])
+		ID = 4
+		strID = str(ID).zfill(3)
+		msg = DetectedObjectList()
+		msg.objects = [strID]
+		msg.ob_msgs = [DetectedObject(id=ID, name=strID, distance=2.0, thetaleft=pi / 2.0, thetaright=-pi / 2.0)]
+		flag_pos_old = np.array([1, 0])
+		flag_pos_new = np.array([3, 0])
+		flg.detected_flags[ID] = flag_pos_old
+		flg.flag_counts[ID] = 1
+
+		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+		self.assertTrue(map_changed)
+		self.assertFalse(opponent_detected)
+		self.assertEqual(flg.opponent_flag, None)
+		assert np.array_equal(flg.detected_flags[ID], flag_pos_new), "Incorrectly moved a flag before game started"
+		self.assertFalse(ID in flg.oracle_flags)
+
+		# Check new flags are added correctly before game starts
+		# ===========================================================
+		ID = 7
+		strID = str(ID).zfill(3)
+		msg = DetectedObjectList()
+		msg.objects = [strID]
+		msg.ob_msgs = [DetectedObject(id=ID, name=strID, distance=2.0, thetaleft=pi / 2.0, thetaright=-pi / 2.0)]
+		flag_pos = np.array([3, 0])
+
+		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+		self.assertTrue(map_changed)
+		self.assertFalse(opponent_detected)
+		self.assertEqual(flg.opponent_flag, None)
+		assert np.array_equal(flg.detected_flags[ID], flag_pos), "Incorrectly added a flag before game started"
+		self.assertFalse(ID in flg.oracle_flags)
+
+	def test_object_detected_B(self):
+		# After Game Starts
+		# ====================
+		flg = FlagLocalizer()
+		flg.game_started = True
+
+		# Check opponent flag not set if opponent pose is unknown
+		# ========================================================
+		robot_pose = np.array([0.0, 0.0, 0.0])
+		ID = 0
+		strID = str(ID).zfill(3)
+		msg = DetectedObjectList()
+		msg.objects = [strID]
+		msg.ob_msgs = [DetectedObject(id=ID, name=strID, distance=2.0, thetaleft=pi / 2.0, thetaright=-pi / 2.0)]
+
+		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+		self.assertTrue(map_changed)
+		self.assertFalse(opponent_detected)
+		self.assertEqual(flg.opponent_flag, None)
+		self.assertTrue(ID in flg.detected_flags)
+
+		# Check flags placed by oracle can be moved after game starts
+		# ========================================================
+		ID = 1
+		strID = str(ID).zfill(3)
+		msg = DetectedObjectList()
+		msg.objects = [strID]
+		msg.ob_msgs = [DetectedObject(id=ID, name=strID, distance=2.0, thetaleft=pi / 2.0, thetaright=-pi / 2.0)]
+		flag_pos_old = np.array([1, 0])
+		flag_pos_new = np.array([2, 0])
+		flg.detected_flags[ID] = flag_pos_old
+		flg.oracle_flags[ID] = flag_pos_old
+		flg.flag_counts[ID] = 1
+
+		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+		self.assertTrue(map_changed)
+		assert np.allclose(flg.detected_flags[ID], flag_pos_new), "Failed to move flag correctly after game started"
+
+		# Check opponent identified correctly if flag not seen before
+		# =====================================================
+		# 1) Flag detection location and opponent location match exactly
+		flg = FlagLocalizer()
+		flg.game_started = True
+
+		robot_pose = ([0, 0, -pi/2.0])
+		ID = 12
+		strID = str(ID).zfill(3)
+		msg = DetectedObjectList()
+		msg.objects = [strID]
+		msg.ob_msgs = [DetectedObject(id=ID, name=strID, distance=1.0, thetaleft=pi / 4.0, thetaright=-pi / 4.0)]
+		flg.opponent_pose = np.array([0, -1, 2])
+
+		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+		self.assertFalse(map_changed)
+		self.assertTrue(opponent_detected)
+		self.assertEqual(len(flg.detected_flags.keys()), 0)
+		self.assertEqual(flg.opponent_flag, ID)
+		assert np.allclose(flg.opponent_pose, np.array([0, -1, 2])), "Shouldn't change opponent pose"
+
+		# 2) Flag detection location and opponent location match within tolerance
+		flg = FlagLocalizer()
+		flg.game_started = True
+
+		robot_pose = ([0, 0, 0])
+		ID = 1
+		strID = str(ID).zfill(3)
+		msg = DetectedObjectList()
+		msg.objects = [strID]
+		msg.ob_msgs = [DetectedObject(id=ID, name=strID, distance=1.0, thetaleft=pi / 2.0, thetaright=pi / 2.0)]
+		flg.opponent_pose = np.array([0, 1 + flg.flag_is_opponent_tol*0.95, 2])
+
+		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+		self.assertFalse(map_changed)
+		self.assertTrue(opponent_detected)
+		self.assertEqual(len(flg.detected_flags.keys()), 0)
+		self.assertEqual(flg.opponent_flag, ID)
+
+		# Check opponent identified correctly if flag seen previously
+		# =========================================================
+		flg = FlagLocalizer()
+		flg.game_started = True
+
+		robot_pose = ([0, 0, 0])
+		ID = 5
+		strID = str(ID).zfill(3)
+		msg = DetectedObjectList()
+		msg.objects = [strID]
+		msg.ob_msgs = [DetectedObject(id=ID, name=strID, distance=1.0, thetaleft=3*pi / 4.0, thetaright=pi / 4.0)]
+		flg.opponent_pose = np.array([0, 1 + flg.flag_is_opponent_tol*0.95, 2])
+		flg.detected_flags[5] = np.array([10, 5])
+
+		map_changed, opponent_detected = flg.object_detected(msg, robot_pose)
+		self.assertFalse(map_changed)
+		self.assertTrue(opponent_detected)
+		self.assertEqual(len(flg.detected_flags.keys()), 1)
+		self.assertEqual(flg.opponent_flag, ID)
+		assert np.allclose(flg.detected_flags[ID], np.array([10, 5])), "Detected flags shouldn't have changed"
+
+		# Check opponent flag not overwritten if already set (and handles opponent flag ID = 0)
+		# ==============================================================
+		
 
 
-	#
-	# def test_object_detected_before_game(self):
-	# 	flg = FlagLocalizer()
-	# 	robot_pose = np.array([0.0, 0.0, 0.0])
-	# 	msg = DetectedObjectList()
-	#
-	# 	# Check if adds new flag
-	# 	ID = 3
-	# 	strID = str(ID).zfill(3)
-	# 	msg.objects = [strID]
-	# 	msg.ob_msgs = [DetectedObject(f_id=ID, name=strID, distance=1, thetaleft=pi/2, thetaright=pi/4)]
-	#
-	#
-	# 	# Check if moves flags placed by oracle
-	#
-	# 	# Check if ignore opponent
-	#
-	# def test_object_detected_during_game(self):
-	# 	# Check if identifies opponent / opponent flag
-	# 	pass
-	#
-	# def test_multiple_objects_detected_before_game(self):
-	# 	pass
-	#
-	# def test_multiple_objects_detected_during_game(self):
-	# 	pass
+	def test_object_detected_C(self):
+		# Multiple objects
+		# =============================
+		# Test multiple objects before game starts
+		pass
+		# Test multiple objects after game starts
+		# ========================================
+
+
+		# Test multiple objects including the opponent
+		# ========================================

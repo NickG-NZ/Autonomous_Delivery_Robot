@@ -6,13 +6,14 @@ from visualization_msgs.msg import Marker
 
 class FlagVisualizerNode(object):
     def __init__(self):
-        rospy.init_node("flag_visualizer", anonnymous=True)
+        rospy.init_node("flag_visualizer", anonymous=True)
 
         # Publishers
         self.marker_pub = rospy.Publisher("flag_visualization", Marker, queue_size=10)
 
         # Subscribers
         rospy.Subscriber("flag_map", FlagMap, self.publish_map_callback)
+        rospy.loginfo("init done")
 
     def publish_map_callback(self, msg):
         for flag, idx in enumerate(msg.objects):
@@ -35,3 +36,15 @@ class FlagVisualizerNode(object):
             # set displayed text to object name
             marker.text = msg.objects[idx]
             self.marker_pub.publish(marker)
+
+    def run(self):
+        if not rospy.is_shutdown():
+            rospy.spin()
+
+
+if __name__ == "__main__":
+    f = FlagVisualizerNode()
+    try:
+        f.run()
+    except rospy.ROSInterruptException:
+        pass
