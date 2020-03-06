@@ -12,13 +12,11 @@ List of things to do
 
 - Make sure "state_change" topic name (from Jason) is correct for determining when to lock "oracle flags"
 
-- Check camera parameters are correct (detector_mobilenet.py)
-	project_pixel_to_ray takes in u,v in pixel counts
-	self.cx, etc also need to be in pixel counts
 
-
-
-- Pull update to detector (and possibly any others) to Cosmo
+!!!IMPORTANT!!!
+- Check camera parameters are correct ON COSMO (detector_mobilenet.py) 
+- Pull update to detector_mobile_net (Piazza) (and possibly any others) to Cosmo
+!!!!!!!!!!!!!!!
 
 - Test the robot identifying our flag by spoofing the opponent location
 
@@ -31,3 +29,12 @@ List of things to do
 
 - After the game starts, the oracle can still move flags, but the oracle flags dictionary becomes redundant 
 	(If a flag which is in the oracle dict is moved, the oracle dict isn't updated accordingly)
+
+
+- Check Flag Localization and Visualization nodes have appropriate run conditions
+
+
+Integrating TA code
+-=======================
+- Integrate grasp visual servoing code
+- Integrate map synchronisation code
