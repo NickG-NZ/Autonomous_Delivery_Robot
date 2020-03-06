@@ -1,0 +1,34 @@
+List of things to do
+====================
+
+- Change the RVIZ configuration to display the "flag_visualizer" topic
+	-> Can manually edit asl_turtlebot/launch/project_rviz.rviz
+	 	This is called by final_rviz.launch
+
+	-> Can load up a blank rviz, turn on the topics we want, save the configuration
+		then overwrite project_rviz.rviz with this new configuration
+
+- Write new launch file
+
+- Make sure "state_change" topic name (from Jason) is correct for determinig when to lock "oracle flags"
+
+- Check camera parameters are correct (detector_mobilenet.py)
+	project_pixel_to_ray takes in u,v in pixel counts
+	self.cx, etc also need to be in pixel counts
+
+- Check that markers move on map when republished (not duplicated etc.)
+
+- Pull update to detector (and possibly any others) to Cosmo
+
+- Test the robot identifying our flag by spoofing the opponent location
+
+- Write functionality to save map
+
+- Make sure opponent_pose is updated regularly enough for identifying opponent
+
+- Check if we want to be able to change our guess of the opponents flag (eg. store the norm(diff) and overwrite flag if
+	a different flag returns a lower norm diff later on etc.). Could just overwrite everytime a flag and the opponent are close.
+
+
+- After the game starts, the oracle can still move flags, but the oracel flags dictionary becomes redundant 
+	(If a flag which is in the oracle dict is moved, the oracle dict isn't updated accordingly)

@@ -131,31 +131,9 @@ class Navigator:
         rospy.Subscriber('/map', OccupancyGrid, self.map_callback)
         rospy.Subscriber('/map_metadata', MapMetaData, self.map_md_callback)
         rospy.Subscriber('/cmd_nav', Pose2D, self.cmd_nav_callback)
-        rospy.Subscriber('/detector/stop_sign', DetectedObject, self.stop_sign_detected_callback)
 
         print "finished init"
 
-    def stop_sign_detected_callback(self, msg):
-        """
-        Stops the robot when appropriate if it sees a stop sign
-        """
-        dist = msg.distance  # distance of the stop sign
-
-        # If close enough and in nav mode, begin stop procedure
-        if 0 < dist < self.stop_max_dist and self.mode == Mode.TRACK:
-            rospy.loginfo("Detected a stop sign")
-            # Use average speed and the distance to stop sign to set stopping time
-            self.stop_maneuver_start_time = rospy.get_rostime()
-            self.time_till_stop = max(0.0, dist / self.v_des - 0.5)
-            self.switch_mode(Mode.STOPPING)
-
-    def cross_after_stop(self):
-        """
-        Continues following the path but ignores stop signs
-        """
-        rospy.loginfo("Crossing")
-        self.cross_start_time = rospy.get_rostime()
-        self.switch_mode(Mode.CROSS)
 
     def reached_goal(self):
         """
@@ -487,19 +465,6 @@ class Navigator:
                 if self.at_goal():
                     # forget about goal:
                     self.reached_goal()
-            elif self.mode == Mode.STOPPING:
-                # Can potentially see stop signs far away or very close (uses different stop times)
-                # Keep tracking the trajectory until closer to sign
-                if (rospy.get_rostime() - self.stop_maneuver_start_time).to_sec() > self.time_till_stop:
-                    self.stop_time_start = rospy.get_rostime()
-                    self.switch_mode(Mode.STOPPED)
-            elif self.mode == Mode.STOPPED:
-                #  Wait for 2 seconds
-                if (rospy.get_rostime() - self.stop_time_start).to_sec() > self.stop_time:
-                    self.cross_after_stop()
-            elif self.mode == Mode.CROSS:
-                if (rospy.get_rostime() - self.cross_start_time).to_sec() > self.crossing_time:
-                    self.switch_mode(Mode.TRACK)
 
             self.publish_control()
             rate.sleep()

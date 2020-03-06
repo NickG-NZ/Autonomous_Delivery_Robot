@@ -165,6 +165,7 @@ class Detector:
         leftray_indx = min(max(0,int(thetaleft/self.laser_angle_increment)),len(ranges))
         rightray_indx = min(max(0,int(thetaright/self.laser_angle_increment)),len(ranges))
 
+        # Account for both rays being one one side of the robot x-axis
         if leftray_indx<rightray_indx:
             meas = ranges[rightray_indx:] + ranges[:leftray_indx]
         else:
@@ -176,7 +177,7 @@ class Detector:
                 dist += m
                 num_m += 1
         if num_m>0:
-            dist /= num_m
+            dist /= num_m  # take average of all measurements in the range
 
         return dist
 
@@ -233,7 +234,7 @@ class Detector:
                 rayleft = self.project_pixel_to_ray(xmin,ycen)
                 rayright = self.project_pixel_to_ray(xmax,ycen)
 
-                # convert the rays to angles (with 0 poiting forward for the robot)
+                # convert the rays to angles (with 0 pointing forward for the robot)
                 thetaleft = math.atan2(-rayleft[0],rayleft[2])
                 thetaright = math.atan2(-rayright[0],rayright[2])
                 if thetaleft<0:

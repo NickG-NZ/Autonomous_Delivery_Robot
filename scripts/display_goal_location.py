@@ -6,7 +6,7 @@ from geometry_msgs.msg import Pose2D
 import tf
 
 
-class Food_Location_Publisher:
+class Goal_Location_Publisher:
     def __init__(self):
         self.x = 0
         self.y = 0
@@ -55,5 +55,5 @@ class Food_Location_Publisher:
 
 
 if __name__ == '__main__':
-    flp = Food_Location_Publisher()
+    flp = Goal_Location_Publisher()
     flp.run()
