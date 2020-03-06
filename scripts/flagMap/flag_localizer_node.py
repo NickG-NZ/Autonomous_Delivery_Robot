@@ -89,7 +89,7 @@ class FlagLocalizerNode(FlagLocalizer):
 
     def run(self):
         if not rospy.is_shutdown():
-            rospy.Spin()
+            rospy.spin()
 
 
 if __name__ == '__main__':
