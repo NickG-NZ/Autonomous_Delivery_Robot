@@ -10,25 +10,24 @@ List of things to do
 
 - Write new launch file
 
-- Make sure "state_change" topic name (from Jason) is correct for determinig when to lock "oracle flags"
+- Make sure "state_change" topic name (from Jason) is correct for determining when to lock "oracle flags"
 
 - Check camera parameters are correct (detector_mobilenet.py)
 	project_pixel_to_ray takes in u,v in pixel counts
 	self.cx, etc also need to be in pixel counts
 
-- Check that markers move on map when republished (not duplicated etc.)
+
 
 - Pull update to detector (and possibly any others) to Cosmo
 
 - Test the robot identifying our flag by spoofing the opponent location
 
-- Write functionality to save map
+- Write functionality to save OccupancyGrid map (add to navigator.py)
 
 - Make sure opponent_pose is updated regularly enough for identifying opponent
 
 - Check if we want to be able to change our guess of the opponents flag (eg. store the norm(diff) and overwrite flag if
 	a different flag returns a lower norm diff later on etc.). Could just overwrite everytime a flag and the opponent are close.
 
-
-- After the game starts, the oracle can still move flags, but the oracel flags dictionary becomes redundant 
+- After the game starts, the oracle can still move flags, but the oracle flags dictionary becomes redundant 
 	(If a flag which is in the oracle dict is moved, the oracle dict isn't updated accordingly)
