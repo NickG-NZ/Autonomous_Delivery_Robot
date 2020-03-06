@@ -9,10 +9,10 @@ class FlagVisualizerNode(object):
         rospy.init_node("flag_visualizer", anonymous=True)
 
         # Publishers
-        self.marker_pub = rospy.Publisher("flag_visualization", Marker, queue_size=10)
+        self.marker_pub = rospy.Publisher("/flag_visualization", Marker, queue_size=10)
 
         # Subscribers
-        rospy.Subscriber("flag_map", FlagMap, self.publish_map_callback)
+        rospy.Subscriber("/flag_map", FlagMap, self.publish_map_callback)
         rospy.loginfo("init done")
 
     def publish_map_callback(self, msg):
@@ -38,8 +38,7 @@ class FlagVisualizerNode(object):
             self.marker_pub.publish(marker)
 
     def run(self):
-        if not rospy.is_shutdown():
-            rospy.spin()
+        rospy.spin()
 
 
 if __name__ == "__main__":

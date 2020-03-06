@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from controllers import PoseController, TrajectoryTracker, HeadingController
 from enum import Enum
 import copy
+import cPickle as pickle
 
 from dynamic_reconfigure.server import Server
 from asl_turtlebot.cfg import NavigatorConfig
@@ -131,9 +132,30 @@ class Navigator:
         rospy.Subscriber('/map', OccupancyGrid, self.map_callback)
         rospy.Subscriber('/map_metadata', MapMetaData, self.map_md_callback)
         rospy.Subscriber('/cmd_nav', Pose2D, self.cmd_nav_callback)
+        rospy.Subscriber("/state_correction", String, self.game_started_callback)
 
         print "finished init"
 
+    def game_started_callback(self, msg):
+        if msg == "go_to_opponent":
+            self.save_map()
+            rospy.loginfo("Saved Occupancy Grid")
+
+    def save_map(self):
+        # Called when the game starts (after mapping has finished)
+        try:
+            os.makedirs('OccupancyGrids')
+        except OSError:
+            pass
+        filename = 'OccupancyGrids/saved_ocupancy_grid.p'
+        with open(filename, 'wb') as fp:
+            pickle.dump(self.detected_flags, fp, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def load_map(self):
+        # Not automatically called, can be used if needed
+        filename = 'OccupancyGrids/saved_ocupancy_grid.p'
+        with open(filename, 'rb') as fp:
+            self.occupancy = pickle.load(fp)
 
     def reached_goal(self):
         """
@@ -188,22 +210,22 @@ class Navigator:
         # if we've received the map metadata and have a way to update it:
         if self.map_width>0 and self.map_height>0 and len(map_probs)>0:
             # init probability based occupancy checker with window size 8
-            self.prev_occupancy = copy.deepcopy(self.occupancy)
-            self.occupancy = StochOccupancyGrid2D(self.map_resolution,
-                                                  self.map_width,
-                                                  self.map_height,
-                                                  self.map_origin[0],
-                                                  self.map_origin[1],
-                                                  8,
-                                                  map_probs,
-                                                  self.collision_thresh)
+            if self.occupancy not None:
+                self.prev_occupancy = copy.deepcopy(self.occupancy)
+                self.occupancy = StochOccupancyGrid2D(self.map_resolution,
+                                                      self.map_width,
+                                                      self.map_height,
+                                                      self.map_origin[0],
+                                                      self.map_origin[1],
+                                                      8,
+                                                      map_probs,
+                                                      self.collision_thresh)
 
-            if self.x_g is not None and self.map_difference_check():
-                # if we have a goal to plan to and map changed significantly, re-plan
-                rospy.loginfo("REPLANNING BECAUSE OF NEW MAP")
-                self.occupancy_updated = True
-                self.replan()  # new map, need to re-plan
-            
+                if self.x_g is not None and self.map_difference_check():
+                    # if we have a goal to plan to and map changed significantly, re-plan
+                    rospy.loginfo("REPLANNING BECAUSE OF NEW MAP")
+                    self.occupancy_updated = True
+                    self.replan()  # new map, need to re-plan
             self.occupancy_updated = False
 
     def map_difference_check(self):
@@ -243,7 +265,7 @@ class Navigator:
 
         if diff > self.map_diff_thresh:
             return True
-        rospy.loginfo("DIFFERENCE IS INSIGNIFICANT")
+        rospy.loginfo("MAP DIFFERENCE IS INSIGNIFICANT")
         return False
 
     def shutdown_callback(self):

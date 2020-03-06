@@ -17,16 +17,16 @@ class FlagLocalizerNode(FlagLocalizer):
         self.tfListener = tf.TransformListener()
 
         # Publishers
-        self.query_response_pub = rospy.Publisher("flagmap/response", Pose2D, queue_size=10)
-        self.flag_map_pub = rospy.Publisher("flag_map", FlagMap, queue_size=10)
-        self.opponent_flag_pub = rospy.Publisher("opponent_flag", Int64, queue_size=10)
+        self.query_response_pub = rospy.Publisher("/flagmap/response", Pose2D, queue_size=10)
+        self.flag_map_pub = rospy.Publisher("/flag_map", FlagMap, queue_size=10)
+        self.opponent_flag_pub = rospy.Publisher("/opponent_flag", Int64, queue_size=10)
 
         # Subscribers
-        rospy.Subscriber("detector/objects", DetectedObjectList, self.object_detected_callback)
-        rospy.Subscriber("oracle/flag_correction", Pose2D, self.oracle_correction_callback)
-        rospy.Subscriber("flagmap/query", Int64, self.flag_query_callback)
-        rospy.Subscriber("state_correction", String, self.game_started_callback)
-        rospy.Subscriber("opponent_location", Pose2D, self.opponent_pose_callback)
+        rospy.Subscriber("/detector/objects", DetectedObjectList, self.object_detected_callback)
+        rospy.Subscriber("/oracle/flag_correction", Pose2D, self.oracle_correction_callback)
+        rospy.Subscriber("/flagmap/query", Int64, self.flag_query_callback)
+        rospy.Subscriber("/state_correction", String, self.game_started_callback)
+        rospy.Subscriber("/opponent_location", Pose2D, self.opponent_pose_callback)
 
     def object_detected_callback(self, msg):
         # Get robot's pose
@@ -88,8 +88,7 @@ class FlagLocalizerNode(FlagLocalizer):
         self.flag_map_pub.publish(flag_map)
 
     def run(self):
-        if not rospy.is_shutdown():
-            rospy.spin()
+        rospy.spin()
 
 
 if __name__ == '__main__':
